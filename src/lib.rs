@@ -136,8 +136,8 @@
 #![feature(lang_items)]
 #![feature(linkage)]
 #![feature(used)]
-#![feature(abi_msp430_interrupt)]
-#![feature(global_asm)]
+#![feature(naked_functions)]
+#![feature(core_intrinsics)]
 #![no_std]
 
 extern crate compiler_builtins;
@@ -161,38 +161,38 @@ extern "C" {
     static _sidata: u16;
 }
 
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn reset_handler_rust() -> ! {
-    ::r0::zero_bss(&mut _sbss, &mut _ebss);
-    ::r0::init_data(&mut _sdata, &mut _edata, &_sidata);
-
-    // Neither `argc` or `argv` make sense in bare metal context so we just
-    // stub them
-    main(0, ::core::ptr::null());
-
-    // If `main` returns, then we go into infinite loop and wait for interrupts.
-    loop {
-    }
-}
-
 /// The reset handler
 ///
 /// This is the entry point of all programs
-/// Sets the stack pointer and calls `reset_handler_rust`
-global_asm!(r#"
-    .section .reset_handler
-    .globl reset_handler
-reset_handler:
-    mov #_stack_start, r1
-    br #reset_handler_rust
-"#);
+#[naked]
+unsafe extern "C" fn reset_handler() -> ! {
+    // This is the actual reset handler.
+    unsafe extern "C" fn handler() -> ! {
+        ::r0::zero_bss(&mut _sbss, &mut _ebss);
+        ::r0::init_data(&mut _sdata, &mut _edata, &_sidata);
 
-extern "msp430-interrupt" {
-    fn reset_handler() -> !;
+        // Neither `argc` or `argv` make sense in bare metal context so we just
+        // stub them
+        main(0, ::core::ptr::null());
+
+        // If `main` returns, then we go into infinite loop and wait for interrupts.
+        loop {}
+    }
+
+    // "trampoline" to get to the real reset handler.
+    asm!(r"
+            mov #_stack_start, r1
+            br $0
+        "
+        :
+        : "i"(handler as unsafe extern "C" fn() -> !)
+        :
+        : "volatile"
+    );
+
+    ::core::intrinsics::unreachable()
 }
 
-#[allow(dead_code)]
 #[used]
 #[link_section = ".vector_table.reset_handler"]
-static RESET_HANDLER: unsafe extern "msp430-interrupt" fn() -> ! = reset_handler;
+static RESET_HANDLER: unsafe extern "C" fn() -> ! = reset_handler;
