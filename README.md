@@ -1,11 +1,13 @@
-[![crates.io](https://img.shields.io/crates/v/cortex-m-rt.svg)](https://crates.io/crates/cortex-m-rt)
-[![crates.io](https://img.shields.io/crates/d/cortex-m-rt.svg)](https://crates.io/crates/cortex-m-rt)
+[![crates.io](https://img.shields.io/crates/v/msp430-rt.svg)](https://crates.io/crates/msp430-rt)
+[![crates.io](https://img.shields.io/crates/d/msp430-rt.svg)](https://crates.io/crates/msp430-rt)
 
-# `cortex-m-rt`
+# `msp430-rt`
 
-> Minimal runtime / startup for Cortex-M microcontrollers
+> Minimal runtime / startup for MSP430 microcontrollers
 
-# [Documentation](https://docs.rs/cortex-m-rt)
+This crate is based on [cortex-m-rt](https://docs.rs/cortex-m-rt) crate by Jorge Aparicio (@japaric).
+
+# [Documentation](https://docs.rs/msp430-rt)
 
 # License
 
