@@ -124,9 +124,9 @@
 //!
 //! Disassembly of section .text:
 //!
-//! 0000c000 <reset_handler>:
-//!     c000:       31 40 00 04     mov     #1024,  r1      ;#0x0400
-//!     c004:       30 40 28 c0     br      #0xc028         ;
+//! 0000c000 <msp430_rt::reset_handler::h77ef04785a7efdda>:
+//!     c000:	31 40 00 04 	mov	#1024,	r1	;#0x0400
+//!     c004:	30 40 28 c0 	br	#0xc028		;
 //! ```
 
 #![deny(missing_docs)]
@@ -165,6 +165,7 @@ extern "C" {
 ///
 /// This is the entry point of all programs
 #[naked]
+#[link_section = ".reset_handler"]
 unsafe extern "C" fn reset_handler() -> ! {
     // This is the actual reset handler.
     unsafe extern "C" fn handler() -> ! {
