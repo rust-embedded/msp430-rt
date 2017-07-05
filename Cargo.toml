@@ -13,7 +13,7 @@ repository = "https://github.com/pftbest/msp430-rt"
 version = "0.1.0"
 
 [dependencies]
-msp430 = { git = "https://github.com/japaric/cortex-m", branch = "msp430" }
+msp430 = { git = "https://github.com/pftbest/cortex-m" }
 r0 = "0.2.1"
 
 [features]
