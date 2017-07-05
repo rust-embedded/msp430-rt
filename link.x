@@ -1,8 +1,8 @@
 INCLUDE memory.x
 
 /* Create an undefined reference to the INTERRUPTS symbol. This is required to
-force the linker to *not* drop the INTERRUPTS symbol if it comes from an
-object file that's passed to the linker *before* this crate */
+   force the linker to *not* drop the INTERRUPTS symbol if it comes from an
+   object file that's passed to the linker *before* this crate */
 EXTERN(INTERRUPTS);
 
 PROVIDE(_stack_start = ORIGIN(RAM) + LENGTH(RAM));
@@ -58,6 +58,9 @@ SECTIONS
      remove the allocatable bit. Unfortunately, it appears
      that the only way to do this in a linker script is
      the extremely obscure "INFO" output section type specifier. */
+  /* a rustc hack will force the program to read the first byte of this section,
+     so we'll set the (fake) start address of this section to something we're
+     sure can be read at runtime: the start of the .text section */
   .debug_gdb_scripts ORIGIN(ROM) (INFO) : {
     KEEP(*(.debug_gdb_scripts))
   }

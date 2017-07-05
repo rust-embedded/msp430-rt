@@ -7,97 +7,75 @@
 //!
 //! This crate provides
 //!
-//! - Before main initialization of the `.bss` and `.data` sections
+//! - Before main initialization of the `.bss` and `.data` sections.
 //!
-//! - An overridable (\*) `panic_fmt` implementation that does nothing.
+//! - A `panic_fmt` implementation that just calls abort that you can opt into
+//!   through the "abort-on-panic" Cargo feature. If you don't use this feature
+//!   you'll have to provide the `panic_fmt` lang item yourself. Documentation
+//!   [here][1]
 //!
-//! - A minimal `start` lang item, to support vanilla `fn main()`. NOTE the
-//!   processor goes into infinite loop after returning from `main`.
+//! [1]: https://doc.rust-lang.org/unstable-book/language-features/lang-items.html
 //!
-//! - An opt-in linker script (`"linker-script"` Cargo feature) that encodes
-//!   the memory layout of a generic MSP430 microcontroller. This linker
-//!   script is missing the definitions of the FLASH, RAM and VECTORS memory
-//!   regions of the device and of the `_stack_start` symbol (address where the
-//!   call stack is allocated). This missing information must be supplied
-//!   through a `memory.x` file (see example below).
+//! - A minimal `start` lang item to support the standard `fn main()`
+//!   interface. (NOTE: The processor goes into infinite loop after
+//!   returning from `main`)
 //!
-//! - A `_sheap` symbol at whose address you can locate the heap.
+//! - A linker script that encodes the memory layout of a generic MSP430
+//!   microcontroller. This linker script is missing some information that must
+//!   be supplied through a `memory.x` file (see example below).
 //!
-//! (\*) To override the `panic_fmt` implementation, simply create a new
-//! `rust_begin_unwind` symbol:
+//! - A default exception handler that can be overridden using the
+//!   [`default_handler!`](macro.default_handler.html) macro.
 //!
-//! ```
-//! #[no_mangle]
-//! pub unsafe extern "C" fn rust_begin_unwind(
-//!     _args: ::core::fmt::Arguments,
-//!     _file: &'static str,
-//!     _line: u32,
-//! ) -> ! {
-//!     ..
-//! }
-//! ```
-//!
-//! (\*\*) All the device specific exceptions, i.e. the interrupts, are left
-//! unpopulated. You must fill that part of the vector table by defining the
-//! following static (with the right memory layout):
-//!
-//! ``` ignore,no_run
-//! #[link_section = ".rodata.interrupts"]
-//! #[used]
-//! static INTERRUPTS: SomeStruct = SomeStruct { .. }
-//! ```
+//! - A `_sheap` symbol at whose address you can locate a heap.
 //!
 //! # Example
+//!
+//! Creating a new bare metal project. (I recommend you use the
+//! [`msp430-quickstart`][qs] template as it takes of all the boilerplate
+//! shown here)
+//!
+//! [qs]: https://github.com/japaric/msp430-quickstart/
 //!
 //! ``` text
 //! $ cargo new --bin app && cd $_
 //!
-//! $ cargo add msp430 msp430-rt
+//! $ # add this crate as a dependency
+//! $ edit Cargo.toml && cat $_
+//! [dependencies.msp430-rt]
+//! features = ["abort-on-panic"]
+//! version = "0.1.0"
 //!
+//! $ # tell Xargo which standard crates to build
 //! $ edit Xargo.toml && cat $_
-//! ```
-//!
-//! ``` text
 //! [dependencies.core]
+//! stage = 0
 //!
 //! [dependencies.compiler_builtins]
 //! features = ["mem"]
 //! git = "https://github.com/rust-lang-nursery/compiler-builtins"
 //! stage = 1
-//! ```
 //!
-//! ``` text
+//! $ # memory layout of the device
 //! $ edit memory.x && cat $_
-//! ```
-//!
-//! ``` text
 //! MEMORY
 //! {
 //!   RAM              : ORIGIN = 0x0200, LENGTH = 0x0200
-//!   FLASH            : ORIGIN = 0xC000, LENGTH = 0x3FDE
+//!   ROM              : ORIGIN = 0xC000, LENGTH = 0x3FDE
 //!   VECTORS          : ORIGIN = 0xFFE0, LENGTH = 0x0020
 //! }
 //!
-//! /* This is where the call stack will be allocated */
-//! _stack_start = ORIGIN(RAM) + LENGTH(RAM);
-//! ```
-//!
-//! ``` text
 //! $ edit src/main.rs && cat $_
 //! ```
 //!
 //! ``` ignore,no_run
 //! #![feature(used)]
-//! #![feature(abi_msp430_interrupt)]
 //! #![no_std]
 //!
-//! extern crate msp430;
 //! extern crate msp430_rt;
 //!
-//! use msp430::asm;
-//!
 //! fn main() {
-//!     asm::nop();
+//!     // do something here
 //! }
 //!
 //! // As we are not using interrupts, we just register a dummy catch all
@@ -116,7 +94,7 @@
 //! ``` text
 //! $ cargo install xargo
 //!
-//! $ xargo rustc --target msp430 --release -- \
+//! $ xargo rustc --target msp430-none-elf --release -- \
 //!       -C link-arg=-Tlink.x \
 //!       -C link-arg=-mmcu=msp430g2553 -C link-arg=-nostartfiles \
 //!       -C linker=msp430-elf-gcc -Z linker-flavor=gcc
@@ -128,6 +106,157 @@
 //! 0000c000 <msp430_rt::reset_handler::h77ef04785a7efdda>:
 //!     c000:	31 40 00 04 	mov	#1024,	r1	;#0x0400
 //!     c004:	30 40 28 c0 	br	#0xc028		;
+//! ```
+//!
+//! # Symbol interfaces
+//!
+//! This crate makes heavy use of symbols, linker sections and linker scripts to
+//! provide most of its functionality. Below are described the main symbol
+//! interfaces.
+//!
+//! ## `DEFAULT_HANDLER`
+//!
+//! This weak symbol can be overridden to override the default exception handler
+//! that this crate provides. It's recommended that you use the
+//! `default_handler!` to do the override, but below is shown how to manually
+//! override the symbol:
+//!
+//! ``` ignore,no_run
+//! #[no_mangle]
+//! pub extern "C" fn DEFAULT_HANDLER() {
+//!     // do something here
+//! }
+//! ```
+//!
+//! ## `.vector_table.interrupts`
+//!
+//! This linker section is used to register interrupt handlers in the vector
+//! table. The recommended way to use this section is to populate it, once, with
+//! an array of *weak* functions that just call the `DEFAULT_HANDLER` symbol.
+//! Then the user can override them by name.
+//!
+//! ### Example
+//!
+//! Populating the vector table
+//!
+//! ``` ignore,no_run
+//! // Number of interrupts the device has
+//! const N: usize = 15;
+//!
+//! // Default interrupt handler that just calls the `DEFAULT_HANDLER`
+//! #[linkage = "weak"]
+//! #[naked]
+//! #[no_mangle]
+//! extern "msp430-interrupt" fn WWDG() {
+//!     unsafe {
+//!         asm!("b DEFAULT_HANDLER" :::: "volatile");
+//!         core::intrinsics::unreachable();
+//!     }
+//! }
+//!
+//! // You need one function per interrupt handler
+//! #[linkage = "weak"]
+//! #[naked]
+//! #[no_mangle]
+//! extern "msp430-interrupt" fn WWDG() {
+//!     unsafe {
+//!         asm!("b DEFAULT_HANDLER" :::: "volatile");
+//!         core::intrinsics::unreachable();
+//!     }
+//! }
+//!
+//! // ..
+//!
+//! // Use `None` for reserved spots in the vector table
+//! #[link_section = ".vector_table.interrupts"]
+//! #[no_mangle]
+//! #[used]
+//! static INTERRUPTS: [Option<extern "msp430-interrupt" fn()>; N] = [
+//!     Some(WWDG),
+//!     Some(PVD),
+//!     // ..
+//! ];
+//! ```
+//!
+//! Overriding an interrupt (this can be in a different crate)
+//!
+//! ``` ignore,no_run
+//! // the name must match the name of one of the weak functions used to
+//! // populate the vector table.
+//! #[no_mangle]
+//! pub extern "msp430-interrupt" fn WWDG() {
+//!     // do something here
+//! }
+//! ```
+//!
+//! ## `memory.x`
+//!
+//! This file supplies the information about the device to the linker.
+//!
+//! ### `MEMORY`
+//!
+//! The main information that this file must provide is the memory layout of
+//! the device in the form of the `MEMORY` command. The command is documented
+//! [here][2], but at a minimum you'll want to create two memory regions: one
+//! for Flash memory and another for RAM.
+//!
+//! [2]: https://sourceware.org/binutils/docs/ld/MEMORY.html
+//!
+//! The program instructions (the `.text` section) will be stored in the memory
+//! region named ROM, and the program `static` variables (the sections `.bss`
+//! and `.data`) will be allocated in the memory region named RAM.
+//!
+//! ### `_stack_start`
+//!
+//! This symbol provides the address at which the call stack will be allocated.
+//! The call stack grows downwards so this address is usually set to the highest
+//! valid RAM address plus one (this *is* an invalid address but the processor
+//! will decrement the stack pointer *before* using its value as an address).
+//!
+//! If omitted this symbol value will default to `ORIGIN(RAM) + LENGTH(RAM)`.
+//!
+//! #### Example
+//!
+//! Allocating the call stack on a different RAM region.
+//!
+//! ```
+//! MEMORY
+//! {
+//!   /* call stack will go here */
+//!   CCRAM : ORIGIN = 0x10000000, LENGTH = 8K
+//!   FLASH : ORIGIN = 0x08000000, LENGTH = 256K
+//!   /* static variables will go here */
+//!   RAM : ORIGIN = 0x20000000, LENGTH = 40K
+//! }
+//!
+//! _stack_start = ORIGIN(CCRAM) + LENGTH(CCRAM);
+//! ```
+//!
+//! ### `_sheap`
+//!
+//! This symbol is located in RAM right after the `.bss` and `.data` sections.
+//! You can use the address of this symbol as the start address of a heap
+//! region. This symbol is 4 byte aligned so that address will be a multiple of
+//! 4.
+//!
+//! #### Example
+//!
+//! ```
+//! extern crate some_allocator;
+//!
+//! // Size of the heap in bytes
+//! const SIZE: usize = 1024;
+//!
+//! extern "C" {
+//!     static mut _sheap: u8;
+//! }
+//!
+//! fn main() {
+//!     unsafe {
+//!         let start_address = &mut _sheap as *mut u8;
+//!         some_allocator::initialize(start_address, SIZE);
+//!     }
+//! }
 //! ```
 
 #![cfg_attr(target_arch = "msp430", feature(core_intrinsics))]
@@ -142,8 +271,8 @@
 #![feature(used)]
 #![no_std]
 
-extern crate compiler_builtins;
 extern crate msp430;
+extern crate compiler_builtins;
 extern crate r0;
 
 use msp430::interrupt;
@@ -167,21 +296,23 @@ extern "C" {
     static _sidata: u16;
 }
 
-/// The reset handler.
+/// The reset handler
+///
+/// This is the entry point of all programs
 #[cfg(target_arch = "msp430")]
 unsafe extern "C" fn reset_handler() -> ! {
     r0::zero_bss(&mut _sbss, &mut _ebss);
     r0::init_data(&mut _sdata, &mut _edata, &_sidata);
 
-    // Neither `argc` or `argv` make sense in bare metal context so we just
-    // stub them
+    // Neither `argc` or `argv` make sense in bare metal context so we
+    // just stub them
     main(0, core::ptr::null());
 
-    // If `main` returns, then we go into infinite loop and wait for
-    // interrupts.
+    // If `main` returns, then we go into "reactive" mode and simply attend
+    // interrupts as they occur.
     loop {}
 
-    // This is the entry point of all programs
+    // This is the real entry point
     #[link_section = ".vector_table.reset_handler"]
     #[naked]
     unsafe extern "msp430-interrupt" fn trampoline() -> ! {
@@ -203,11 +334,10 @@ unsafe extern "C" fn reset_handler() -> ! {
         trampoline;
 }
 
-#[allow(non_snake_case)]
-#[allow(private_no_mangle_fns)]
+#[export_name = "DEFAULT_HANDLER"]
 #[linkage = "weak"]
-#[no_mangle]
-extern "C" fn DEFAULT_HANDLER() {
+#[naked]
+extern "C" fn default_handler() -> ! {
     interrupt::disable();
     loop {}
 }
@@ -215,7 +345,7 @@ extern "C" fn DEFAULT_HANDLER() {
 // make sure the compiler emits the DEFAULT_HANDLER symbol so the linker can
 // find it!
 #[used]
-static KEEP: extern "C" fn() = DEFAULT_HANDLER;
+static KEEP: extern "C" fn() -> ! = default_handler;
 
 /// This macro lets you override the default exception handler
 ///
@@ -230,7 +360,6 @@ static KEEP: extern "C" fn() = DEFAULT_HANDLER;
 ///
 /// mod foo {
 ///     pub fn bar() {
-///         ::cortex_m::asm::bkpt();
 ///         loop {}
 ///     }
 /// }
