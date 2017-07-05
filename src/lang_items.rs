@@ -1,16 +1,13 @@
 /// Default panic handler
+#[cfg(feature = "abort-on-panic")]
 #[lang = "panic_fmt"]
-#[linkage = "weak"]
 unsafe extern "C" fn panic_fmt(
     _args: ::core::fmt::Arguments,
     _file: &'static str,
     _line: u32,
+    _col: u32,
 ) -> ! {
-    match () {
-        () => {}
-    }
-
-    loop {}
+    ::core::intrinsics::abort()
 }
 
 /// Lang item required to make the normal `main` work in applications

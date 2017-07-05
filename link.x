@@ -1,46 +1,50 @@
 INCLUDE memory.x
 
+/* Create an undefined reference to the INTERRUPTS symbol. This is required to
+force the linker to *not* drop the INTERRUPTS symbol if it comes from an
+object file that's passed to the linker *before* this crate */
+EXTERN(INTERRUPTS);
+
+PROVIDE(_stack_start = ORIGIN(RAM) + LENGTH(RAM));
+
 SECTIONS
 {
   .vector_table ORIGIN(VECTORS) :
   {
-    /* Vector table */
-    _svector_table = .;
-
-    KEEP(*(.rodata.interrupts));
+    _sinterrupts = .;
+    KEEP(*(.vector_table.interrupts));
     _einterrupts = .;
 
-    KEEP(*(.vector_table.reset_handler));
-    _evector_table = .;
+    KEEP(*(.vector_table.reset_vector));
   } > VECTORS
 
-  .text ORIGIN(FLASH) :
+  .text ORIGIN(ROM) :
   {
-    /* Put reset handler first in .text section so it ends up as the entry */
-    /* point of the program. */
-    KEEP(*(.reset_handler));
+    /* Put the reset handler first in .text section so it ends up as the entry
+       point of the program */
+    KEEP(*(.vector_table.reset_handler));
 
     *(.text .text.*);
-  } > FLASH
+  } > ROM
 
-  .rodata : ALIGN(4)
+  .rodata : ALIGN(2)
   {
     *(.rodata .rodata.*);
-  } > FLASH
+  } > ROM
 
-  .bss : ALIGN(4)
+  .bss : ALIGN(2)
   {
     _sbss = .;
     *(.bss .bss.*);
-    _ebss = ALIGN(4);
+    _ebss = ALIGN(2);
   } > RAM
 
-  .data : ALIGN(4)
+  .data : ALIGN(2)
   {
     _sdata = .;
     *(.data .data.*);
-    _edata = ALIGN(4);
-  } > RAM AT > FLASH
+    _edata = ALIGN(2);
+  } > RAM AT > ROM
 
   _sidata = LOADADDR(.data);
 
@@ -54,48 +58,20 @@ SECTIONS
      remove the allocatable bit. Unfortunately, it appears
      that the only way to do this in a linker script is
      the extremely obscure "INFO" output section type specifier. */
-  .debug_gdb_scripts 0 (INFO) : {
+  .debug_gdb_scripts ORIGIN(ROM) (INFO) : {
     KEEP(*(.debug_gdb_scripts))
-  }
-
-  .stlog 0 (INFO) : {
-    _sstlog_trace = .;
-    *(.stlog.trace*);
-    _estlog_trace = .;
-
-    _sstlog_debug = .;
-    *(.stlog.debug*);
-    _estlog_debug = .;
-
-    _sstlog_info = .;
-    *(.stlog.info*);
-    _estlog_info = .;
-
-    _sstlog_warn = .;
-    *(.stlog.warn*);
-    _estlog_warn = .;
-
-    _sstlog_error = .;
-    *(.stlog.error*);
-    _estlog_error = .;
-  }
-
-  /DISCARD/ :
-  {
-    /* Unused unwinding stuff */
-    *(.ARM.exidx.*)
-    *(.ARM.extab.*)
   }
 }
 
 /* Do not exceed this mark in the error messages below                | */
-ASSERT(_einterrupts - _svector_table > 0, "
-You must specify the interrupt handlers.
-Create a non `pub` static variable and place it in the
-'.rodata.interrupts' section. (cf. #[link_section]). Apply the
-`#[used]` attribute to the variable to help it reach the linker.");
+ASSERT(_einterrupts - _sinterrupts > 0, "
+The interrupt handlers are missing. If you are not linking to a device
+crate then you supply the interrupt handlers yourself. Check the
+documentation.");
 
-ASSERT(_evector_table == 0x10000, "
-Vector table must always end at address 0x10000 (0xFFFE + 2).
-Please check the 'VECTORS' memory region or 
-the '.rodata.interrupts' section. (cf. #[link_section])");
+ASSERT(ORIGIN(VECTORS) + LENGTH(VECTORS) == 0x10000, "
+The VECTORS memory region must end at address 0x10000. Check memory.x");
+
+ASSERT(_einterrupts == 0xFFFE, "
+The section .vector_table.interrupts appears to be wrong. It should
+end at address 0xFFFE");
