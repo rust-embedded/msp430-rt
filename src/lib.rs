@@ -100,11 +100,12 @@
 //!     asm::nop();
 //! }
 //!
-//! // As we are not using interrupts, we just register a dummy catch all handler
-//! #[allow(dead_code)]
-//! #[link_section = ".rodata.interrupts"]
+//! // As we are not using interrupts, we just register a dummy catch all
+//! // handler
+//! #[link_section = ".vector_table.interrupts"]
 //! #[used]
-//! static INTERRUPTS: [extern "msp430-interrupt" fn(); 15] = [default_handler; 15];
+//! static INTERRUPTS: [extern "msp430-interrupt" fn(); 15] =
+//!     [default_handler; 15];
 //!
 //! extern "msp430-interrupt" fn default_handler() {
 //!     loop {
@@ -129,22 +130,27 @@
 //!     c004:	30 40 28 c0 	br	#0xc028		;
 //! ```
 
+#![cfg_attr(target_arch = "msp430", feature(core_intrinsics))]
 #![deny(missing_docs)]
 #![deny(warnings)]
+#![feature(abi_msp430_interrupt)]
 #![feature(asm)]
 #![feature(compiler_builtins_lib)]
 #![feature(lang_items)]
 #![feature(linkage)]
-#![feature(used)]
 #![feature(naked_functions)]
-#![feature(core_intrinsics)]
+#![feature(used)]
 #![no_std]
 
 extern crate compiler_builtins;
+extern crate msp430;
 extern crate r0;
+
+use msp430::interrupt;
 
 mod lang_items;
 
+#[cfg(target_arch = "msp430")]
 extern "C" {
     // NOTE `rustc` forces this signature on us. See `src/lang_items.rs`
     fn main(argc: isize, argv: *const *const u8) -> isize;
@@ -157,43 +163,88 @@ extern "C" {
     static mut _edata: u16;
     static mut _sdata: u16;
 
-    // Initial values of the .data section (stored in Flash)
+    // Initial values of the .data section (stored in ROM)
     static _sidata: u16;
 }
 
-/// The reset handler
-///
-/// This is the entry point of all programs
-#[naked]
-#[link_section = ".reset_handler"]
+/// The reset handler.
+#[cfg(target_arch = "msp430")]
 unsafe extern "C" fn reset_handler() -> ! {
-    // This is the actual reset handler.
-    unsafe extern "C" fn handler() -> ! {
-        ::r0::zero_bss(&mut _sbss, &mut _ebss);
-        ::r0::init_data(&mut _sdata, &mut _edata, &_sidata);
+    r0::zero_bss(&mut _sbss, &mut _ebss);
+    r0::init_data(&mut _sdata, &mut _edata, &_sidata);
 
-        // Neither `argc` or `argv` make sense in bare metal context so we just
-        // stub them
-        main(0, ::core::ptr::null());
+    // Neither `argc` or `argv` make sense in bare metal context so we just
+    // stub them
+    main(0, core::ptr::null());
 
-        // If `main` returns, then we go into infinite loop and wait for interrupts.
-        loop {}
+    // If `main` returns, then we go into infinite loop and wait for
+    // interrupts.
+    loop {}
+
+    // This is the entry point of all programs
+    #[link_section = ".vector_table.reset_handler"]
+    #[naked]
+    unsafe extern "msp430-interrupt" fn trampoline() -> ! {
+        // "trampoline" to get to the real reset handler.
+        asm!("mov #_stack_start, r1
+              br $0"
+             :
+             : "i"(reset_handler as unsafe extern "C" fn() -> !)
+             :
+             : "volatile"
+        );
+
+        core::intrinsics::unreachable()
     }
 
-    // "trampoline" to get to the real reset handler.
-    asm!(r"
-            mov #_stack_start, r1
-            br $0
-        "
-        :
-        : "i"(handler as unsafe extern "C" fn() -> !)
-        :
-        : "volatile"
-    );
-
-    ::core::intrinsics::unreachable()
+    #[link_section = ".vector_table.reset_vector"]
+    #[used]
+    static RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! =
+        trampoline;
 }
 
+#[allow(non_snake_case)]
+#[allow(private_no_mangle_fns)]
+#[linkage = "weak"]
+#[no_mangle]
+extern "C" fn DEFAULT_HANDLER() {
+    interrupt::disable();
+    loop {}
+}
+
+// make sure the compiler emits the DEFAULT_HANDLER symbol so the linker can
+// find it!
 #[used]
-#[link_section = ".vector_table.reset_handler"]
-static RESET_HANDLER: unsafe extern "C" fn() -> ! = reset_handler;
+static KEEP: extern "C" fn() = DEFAULT_HANDLER;
+
+/// This macro lets you override the default exception handler
+///
+/// The first and only argument to this macro is the path to the function that
+/// will be used as the default handler. That function must have signature
+/// `fn()`
+///
+/// # Examples
+///
+/// ``` ignore
+/// default_handler!(foo::bar);
+///
+/// mod foo {
+///     pub fn bar() {
+///         ::cortex_m::asm::bkpt();
+///         loop {}
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! default_handler {
+    ($body:path) => {
+        #[allow(non_snake_case)]
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn DEFAULT_HANDLER() {
+            // type checking
+            let f: fn() = $body;
+            f();
+        }
+    }
+}

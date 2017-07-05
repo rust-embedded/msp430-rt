@@ -6,16 +6,18 @@ authors = [
 categories = ["embedded", "no-std"]
 description = "Minimal runtime / startup for MSP430 microcontrollers"
 documentation = "https://docs.rs/msp430-rt"
-keywords = ["arm", "msp430", "runtime", "startup"]
+keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 name = "msp430-rt"
 repository = "https://github.com/pftbest/msp430-rt"
 version = "0.1.0"
 
 [dependencies]
+msp430 = { git = "https://github.com/japaric/cortex-m", branch = "msp430" }
 r0 = "0.2.1"
 
 [features]
+abort-on-panic = []
 default = ["linker-script"]
 # generic linker script
 linker-script = []
