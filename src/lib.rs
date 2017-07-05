@@ -336,7 +336,6 @@ unsafe extern "C" fn reset_handler() -> ! {
 
 #[export_name = "DEFAULT_HANDLER"]
 #[linkage = "weak"]
-#[naked]
 extern "C" fn default_handler() -> ! {
     interrupt::disable();
     loop {}
