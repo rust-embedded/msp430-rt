@@ -123,7 +123,7 @@
 //!
 //! ``` ignore,no_run
 //! #[no_mangle]
-//! pub extern "C" fn DEFAULT_HANDLER() {
+//! pub extern "msp430-interrupt" fn DEFAULT_HANDLER() {
 //!     // do something here
 //! }
 //! ```
@@ -275,9 +275,9 @@ extern crate msp430;
 extern crate compiler_builtins;
 extern crate r0;
 
-use msp430::interrupt;
-
 mod lang_items;
+
+use msp430::interrupt;
 
 #[cfg(target_arch = "msp430")]
 extern "C" {
@@ -306,7 +306,7 @@ unsafe extern "C" fn reset_handler() -> ! {
 
     // Neither `argc` or `argv` make sense in bare metal context so we
     // just stub them
-    main(0, core::ptr::null());
+    main(0, ::core::ptr::null());
 
     // If `main` returns, then we go into "reactive" mode and simply attend
     // interrupts as they occur.
@@ -325,7 +325,7 @@ unsafe extern "C" fn reset_handler() -> ! {
              : "volatile"
         );
 
-        core::intrinsics::unreachable()
+        ::core::intrinsics::unreachable()
     }
 
     #[link_section = ".vector_table.reset_vector"]
@@ -336,7 +336,7 @@ unsafe extern "C" fn reset_handler() -> ! {
 
 #[export_name = "DEFAULT_HANDLER"]
 #[linkage = "weak"]
-extern "C" fn default_handler() -> ! {
+extern "msp430-interrupt" fn default_handler() {
     interrupt::disable();
     loop {}
 }
@@ -344,7 +344,7 @@ extern "C" fn default_handler() -> ! {
 // make sure the compiler emits the DEFAULT_HANDLER symbol so the linker can
 // find it!
 #[used]
-static KEEP: extern "C" fn() -> ! = default_handler;
+static KEEP: extern "msp430-interrupt" fn() = default_handler;
 
 /// This macro lets you override the default exception handler
 ///
@@ -365,13 +365,13 @@ static KEEP: extern "C" fn() -> ! = default_handler;
 /// ```
 #[macro_export]
 macro_rules! default_handler {
-    ($body:path) => {
+    ($path:path) => {
         #[allow(non_snake_case)]
         #[doc(hidden)]
         #[no_mangle]
-        pub unsafe extern "C" fn DEFAULT_HANDLER() {
+        pub unsafe extern "msp430-interrupt" fn DEFAULT_HANDLER() {
             // type checking
-            let f: fn() = $body;
+            let f: fn() = $path;
             f();
         }
     }
