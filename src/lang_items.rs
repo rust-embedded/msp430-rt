@@ -7,7 +7,8 @@ unsafe extern "C" fn panic_fmt(
     _line: u32,
     _col: u32,
 ) -> ! {
-    ::core::intrinsics::abort()
+    loop {
+    }
 }
 
 /// Lang item required to make the normal `main` work in applications
