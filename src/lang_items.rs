@@ -7,6 +7,8 @@ unsafe extern "C" fn panic_fmt(
     _line: u32,
     _col: u32,
 ) -> ! {
+    // Disable interrupts to prevent further damage.
+    ::msp430::interrupt::disable();
     loop {
         // Prevent optimizations that can remove this loop.
         ::msp430::asm::barrier();

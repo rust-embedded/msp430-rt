@@ -276,8 +276,6 @@ extern crate r0;
 
 mod lang_items;
 
-use msp430::interrupt;
-
 #[cfg(target_arch = "msp430")]
 extern "C" {
     // NOTE `rustc` forces this signature on us. See `src/lang_items.rs`
@@ -339,7 +337,7 @@ unsafe extern "C" fn reset_handler() -> ! {
 #[export_name = "DEFAULT_HANDLER"]
 #[linkage = "weak"]
 extern "msp430-interrupt" fn default_handler() {
-    interrupt::disable();
+    // The interrupts are already disabled here.
     loop {
         // Prevent optimizations that can remove this loop.
         ::msp430::asm::barrier();
