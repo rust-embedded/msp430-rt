@@ -8,6 +8,7 @@ unsafe extern "C" fn panic_fmt(
     _col: u32,
 ) -> ! {
     loop {
+        ::msp430::asm::nop();
     }
 }
 
