@@ -309,7 +309,10 @@ unsafe extern "C" fn reset_handler() -> ! {
 
     // If `main` returns, then we go into "reactive" mode and simply attend
     // interrupts as they occur.
-    loop {}
+    loop {
+        // Prevent optimizations that can remove this loop.
+        ::msp430::asm::barrier();
+    }
 
     // This is the real entry point
     #[link_section = ".vector_table.reset_handler"]
@@ -337,7 +340,10 @@ unsafe extern "C" fn reset_handler() -> ! {
 #[linkage = "weak"]
 extern "msp430-interrupt" fn default_handler() {
     interrupt::disable();
-    loop {}
+    loop {
+        // Prevent optimizations that can remove this loop.
+        ::msp430::asm::barrier();
+    }
 }
 
 // make sure the compiler emits the DEFAULT_HANDLER symbol so the linker can
