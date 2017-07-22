@@ -7,4 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## v0.1.0 - 2017-07-22
+
+Initial release
+
 [Unreleased]: https://github.com/pftbest/msp430-rt/compare/v0.1.0...HEAD

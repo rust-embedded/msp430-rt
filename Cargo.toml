@@ -13,8 +13,8 @@ repository = "https://github.com/pftbest/msp430-rt"
 version = "0.1.0"
 
 [dependencies]
-msp430 = { git = "https://github.com/pftbest/msp430" }
-r0 = "0.2.1"
+msp430 = "0.1.0"
+r0 = "0.2.2"
 
 [features]
 # provides a panic_fmt implementation that goes into infinite loop
