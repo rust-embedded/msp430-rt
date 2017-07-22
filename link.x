@@ -9,7 +9,7 @@ PROVIDE(_stack_start = ORIGIN(RAM) + LENGTH(RAM));
 
 SECTIONS
 {
-  .vector_table ORIGIN(VECTORS) :
+  .vector_table ORIGIN(VECTORS) : ALIGN(2)
   {
     _sinterrupts = .;
     KEEP(*(.vector_table.interrupts));
@@ -30,23 +30,36 @@ SECTIONS
   .rodata : ALIGN(2)
   {
     *(.rodata .rodata.*);
+    . = ALIGN(2);
   } > ROM
 
   .bss : ALIGN(2)
   {
     _sbss = .;
     *(.bss .bss.*);
-    _ebss = ALIGN(2);
+    . = ALIGN(2);
+    _ebss = .;
   } > RAM
 
   .data : ALIGN(2)
   {
+    _sidata = LOADADDR(.data);
     _sdata = .;
     *(.data .data.*);
-    _edata = ALIGN(2);
+    . = ALIGN(2);
+    _edata = .;
   } > RAM AT > ROM
 
-  _sidata = LOADADDR(.data);
+  /* fake output .got section */
+  /* Dynamic relocations are unsupported. This section is only used to detect
+     relocatable code in the input files and raise an error if relocatable code
+     is found */
+  .got :
+  {
+    _sgot = .;
+    KEEP(*(.got .got.*));
+    _egot = .;
+  } > RAM AT > ROM
 
   /* The heap starts right after the .bss + .data section ends */
   _sheap = _edata;
@@ -78,3 +91,10 @@ The VECTORS memory region must end at address 0x10000. Check memory.x");
 ASSERT(_einterrupts == 0xFFFE, "
 The section .vector_table.interrupts appears to be wrong. It should
 end at address 0xFFFE");
+
+ASSERT(_sgot == _egot, "
+.got section detected in the input files. Dynamic relocations are not
+supported. If you are linking to C code compiled using the `gcc` crate
+then modify your build script to compile the C code _without_ the
+-fPIC flag. See the documentation of the `gcc::Config.fpic` method for
+details.");
