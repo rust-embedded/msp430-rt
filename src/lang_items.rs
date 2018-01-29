@@ -2,12 +2,7 @@
 #[cfg(feature = "abort-on-panic")]
 #[lang = "panic_fmt"]
 unsafe extern "C" fn panic_fmt(_: ::core::fmt::Arguments, _: &'static str, _: u32, _: u32) -> ! {
-    // Disable interrupts to prevent further damage.
-    ::msp430::interrupt::disable();
-    loop {
-        // Prevent optimizations that can remove this loop.
-        ::msp430::asm::barrier();
-    }
+    ::core::intrinsics::abort()
 }
 
 // Lang item required to make the normal `main` work in applications

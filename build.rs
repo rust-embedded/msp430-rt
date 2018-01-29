@@ -20,8 +20,6 @@ fn main() {
         println!("cargo:rustc-cfg=has_termination_lang")
     }
 
-    let target = env::var("TARGET").unwrap();
-
     // Put the linker script somewhere the linker can find it
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
     File::create(out.join("link.x"))
