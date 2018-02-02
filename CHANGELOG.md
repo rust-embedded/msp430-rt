@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+- Fix version tags
+
 ## [v0.1.1] - 2018-02-02
+
 - Import `Termination` trait code from [cortex-m-rt] to permit compiling with
 recent nightlies.
 
@@ -17,5 +20,5 @@ Initial release
 
 [cortex-m-rt]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/pftbest/msp430-rt/compare/v0.2.0...HEAD
-[v0.1.1]: https://github.com/japaric/cortex-m-rt/compare/v0.1.0...v0.1.1
+[Unreleased]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.1...HEAD
+[v0.1.1]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.0...msp_v0.1.1
