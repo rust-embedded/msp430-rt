@@ -285,7 +285,6 @@
 #![no_std]
 
 extern crate compiler_builtins;
-#[cfg(target_arch = "msp430")]
 extern crate msp430;
 #[cfg(target_arch = "msp430")]
 extern crate r0;
