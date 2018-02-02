@@ -17,13 +17,8 @@ msp430 = "0.1.0"
 r0 = "0.2.2"
 
 [features]
-# provides a panic_fmt implementation that calls the abort intrinsic
+# provides a panic_fmt implementation that goes into infinite loop
 abort-on-panic = []
-# provides a naive abort implementation that goes into infinite loop.
-# A better abort implementaion can do a CPU reset, by using incorrect password
-# on a protected register, for example:
-# WDTCTL = 0xDEAD;
-loop-on-abort = []
 
 [build-dependencies]
 rustc_version = "0.2.1"
