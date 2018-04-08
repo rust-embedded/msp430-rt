@@ -277,14 +277,12 @@
 #![deny(warnings)]
 #![feature(abi_msp430_interrupt)]
 #![feature(asm)]
-#![feature(compiler_builtins_lib)]
 #![feature(lang_items)]
 #![feature(linkage)]
 #![feature(naked_functions)]
 #![feature(used)]
 #![no_std]
 
-extern crate compiler_builtins;
 extern crate msp430;
 #[cfg(target_arch = "msp430")]
 extern crate r0;
