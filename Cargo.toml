@@ -10,7 +10,7 @@ keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 name = "msp430-rt"
 repository = "https://github.com/pftbest/msp430-rt"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 msp430 = "0.1.0"
