@@ -1,7 +1,9 @@
+use core::panic::PanicInfo;
+
 /// Default panic handler
 #[cfg(feature = "abort-on-panic")]
-#[lang = "panic_fmt"]
-unsafe extern "C" fn panic_fmt(_: ::core::fmt::Arguments, _: &'static str, _: u32, _: u32) -> ! {
+#[panic_implementation]
+fn panic(_info: &PanicInfo) -> ! {
     // Disable interrupts to prevent further damage.
     ::msp430::interrupt::disable();
     loop {
