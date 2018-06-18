@@ -275,7 +275,6 @@
 #![cfg_attr(target_arch = "msp430", feature(core_intrinsics))]
 #![cfg_attr(feature = "abort-on-panic", feature(panic_implementation))]
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![feature(abi_msp430_interrupt)]
 #![feature(asm)]
 #![feature(lang_items)]
