@@ -1,35 +1,38 @@
 INCLUDE memory.x
 
-/* With multiple codegen units the rlib produced for this crate has several object files in it. */
-/* Because the linker is Smart it may not look into all the object files and not pick up the */
-/* .vector_table.exceptions section. But we want it to! To workaround the problem we create an */
-/* undefined reference to the EXCEPTIONS symbol (located in .vector_table.exceptions); this way the */
-/* linker will look at all the object of the rlib and pick up our EXCEPTIONS symbol */
-EXTERN(EXCEPTIONS);
+/* Entry point */
+ENTRY(Reset);
+EXTERN(__RESET_VECTOR);
 
 /* Create an undefined reference to the INTERRUPTS symbol. This is required to
    force the linker to *not* drop the INTERRUPTS symbol if it comes from an
    object file that's passed to the linker *before* this crate */
-EXTERN(INTERRUPTS);
+EXTERN(__INTERRUPTS);
 
-PROVIDE(_stack_start = ORIGIN(RAM) + LENGTH(RAM));
+/* # Pre-initialization function */
+/* If the user overrides this using the `pre_init!` macro or by creating a `__pre_init` function,
+then the function this points to will be called before the RAM is initialized. */
+PROVIDE(PreInit = PreInit_);
+
+/* # Default interrupt handler */
+PROVIDE(DefaultHandler = DefaultHandler_);
+
+/* XXX Are there use cases for making this user overridable? */
+_stack_start = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
-  .vector_table ORIGIN(VECTORS) : ALIGN(2)
+  .vector_table 0xFFE0 : ALIGN(2)
   {
-    _sinterrupts = .;
     KEEP(*(.vector_table.interrupts));
-    _einterrupts = .;
-
-    KEEP(*(.vector_table.reset_vector));
-  } > VECTORS
+    KEEP(*(.__RESET_VECTOR));
+  } > ROM
 
   .text ORIGIN(ROM) :
   {
-    /* Put the reset handler first in .text section so it ends up as the entry
-       point of the program */
-    KEEP(*(.vector_table.reset_handler));
+    /* Put the reset handler and its trampoline at the beginning of the .text section */
+    KEEP(*(.ResetTrampoline));
+    KEEP(*(.Reset));
 
     *(.text .text.*);
   } > ROM
@@ -70,38 +73,25 @@ SECTIONS
 
   /* The heap starts right after the .bss + .data section ends */
   _sheap = _edata;
-
-  /* Due to an unfortunate combination of legacy concerns,
-     toolchain drawbacks, and insufficient attention to detail,
-     rustc has no choice but to mark .debug_gdb_scripts as allocatable.
-     We really do not want to upload it to our target, so we
-     remove the allocatable bit. Unfortunately, it appears
-     that the only way to do this in a linker script is
-     the extremely obscure "INFO" output section type specifier. */
-  /* a rustc hack will force the program to read the first byte of this section,
-     so we'll set the (fake) start address of this section to something we're
-     sure can be read at runtime: the start of the .text section */
-  .debug_gdb_scripts ORIGIN(ROM) (INFO) : {
-    KEEP(*(.debug_gdb_scripts))
-  }
 }
 
-/* Do not exceed this mark in the error messages below                | */
-ASSERT(_einterrupts - _sinterrupts > 0, "
-The interrupt handlers are missing. If you are not linking to a device
-crate then you supply the interrupt handlers yourself. Check the
-documentation.");
+/* Do not exceed this mark in the error messages below                                    | */
+ASSERT(ORIGIN(ROM) + LENGTH(ROM) == 0x10000, "
+ERROR(msp430-rt): The ROM memory region must end at address 0x10000. Check memory.x");
 
-ASSERT(ORIGIN(VECTORS) + LENGTH(VECTORS) == 0x10000, "
-The VECTORS memory region must end at address 0x10000. Check memory.x");
-
-ASSERT(_einterrupts == 0xFFFE, "
-The section .vector_table.interrupts appears to be wrong. It should
-end at address 0xFFFE");
+ASSERT(ADDR(.vector_table) + SIZEOF(.vector_table) == 0x10000, "
+ERROR(msp430-rt): .vector_table is shorter than expected.
+Possible solutions, from most likely to less likely:
+- Link to a svd2rust generated pac crate, if you are not
+- Fix _sinterrupts in memory.x; it doesn't match the number of interrupts provided by the
+  pac crate
+- Disable the 'device' feature of msp430-rt to build a generic application; a dependency
+may be enabling it
+");
 
 ASSERT(_sgot == _egot, "
-.got section detected in the input files. Dynamic relocations are not
-supported. If you are linking to C code compiled using the `gcc` crate
-then modify your build script to compile the C code _without_ the
--fPIC flag. See the documentation of the `gcc::Config.fpic` method for
-details.");
+ERROR(msp430-rt): .got section detected in the input object files
+Dynamic relocations are not supported. If you are linking to C code compiled using
+the 'cc' crate then modify your build script to compile the C code _without_
+the -fPIC flag. See the documentation of the `cc::Build.pic` method for details.");
+/* Do not exceed this mark in the error messages above                                    | */

@@ -6,19 +6,26 @@ authors = [
 categories = ["embedded", "no-std"]
 description = "Minimal runtime / startup for MSP430 microcontrollers"
 documentation = "https://docs.rs/msp430-rt"
+edition = "2018"
 keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 name = "msp430-rt"
 repository = "https://github.com/pftbest/msp430-rt"
-version = "0.1.3"
+version = "0.2.0"
 
 [dependencies]
 msp430 = "0.1.0"
 r0 = "0.2.2"
 
-[features]
-# provides a panic_fmt implementation that goes into infinite loop
-abort-on-panic = []
+[dependencies.msp430-rt-macros]
+version = "0.2.0"
+path = "macros"
 
-[build-dependencies]
-rustc_version = "0.2.1"
+[features]
+device = ["msp430-rt-macros/device"]
+
+[package.metadata.docs.rs]
+features = ["device"]
+
+[workspace]
+members = ["macros"]
