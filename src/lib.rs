@@ -9,11 +9,6 @@
 //!
 //! - Before main initialization of the `.bss` and `.data` sections.
 //!
-//! - A `panic_fmt` implementation that just calls abort that you can opt into
-//!   through the "abort-on-panic" Cargo feature. If you don't use this feature
-//!   you'll have to provide the `panic_fmt` lang item yourself. Documentation
-//!   [here](https://doc.rust-lang.org/unstable-book/language-features/lang-items.html)
-//!
 //! - A minimal `start` lang item to support the standard `fn main()`
 //!   interface. (NOTE: The processor goes into infinite loop after
 //!   returning from `main`)
@@ -41,7 +36,6 @@
 //! $ # add this crate as a dependency
 //! $ edit Cargo.toml && cat $_
 //! [dependencies.msp430-rt]
-//! features = ["abort-on-panic"]
 //! version = "0.1.0"
 //!
 //! $ # tell Xargo which standard crates to build
@@ -273,7 +267,6 @@
 //! ```
 
 #![cfg_attr(target_arch = "msp430", feature(core_intrinsics))]
-#![cfg_attr(feature = "abort-on-panic", feature(panic_implementation))]
 #![deny(missing_docs)]
 #![feature(abi_msp430_interrupt)]
 #![feature(asm)]
@@ -344,8 +337,7 @@ unsafe extern "C" fn reset_handler() -> ! {
 
     #[link_section = ".vector_table.reset_vector"]
     #[used]
-    static RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! =
-        trampoline;
+    static RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = trampoline;
 }
 
 #[export_name = "DEFAULT_HANDLER"]
@@ -391,5 +383,5 @@ macro_rules! default_handler {
             let f: fn() = $path;
             f();
         }
-    }
+    };
 }

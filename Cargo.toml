@@ -16,9 +16,5 @@ version = "0.1.3"
 msp430 = "0.1.0"
 r0 = "0.2.2"
 
-[features]
-# provides a panic_fmt implementation that goes into infinite loop
-abort-on-panic = []
-
 [build-dependencies]
 rustc_version = "0.2.1"
