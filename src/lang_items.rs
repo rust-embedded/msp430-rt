@@ -1,17 +1,3 @@
-use core::panic::PanicInfo;
-
-/// Default panic handler
-#[cfg(feature = "abort-on-panic")]
-#[panic_implementation]
-fn panic(_info: &PanicInfo) -> ! {
-    // Disable interrupts to prevent further damage.
-    ::msp430::interrupt::disable();
-    loop {
-        // Prevent optimizations that can remove this loop.
-        ::msp430::asm::barrier();
-    }
-}
-
 // Lang item required to make the normal `main` work in applications
 //
 // This is how the `start` lang item works:
