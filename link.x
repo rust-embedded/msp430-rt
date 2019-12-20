@@ -22,11 +22,11 @@ _stack_start = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
-  .vector_table 0xFFE0 : ALIGN(2)
+  .vector_table ORIGIN(VECTORS) : ALIGN(2)
   {
     KEEP(*(.vector_table.interrupts));
     KEEP(*(.__RESET_VECTOR));
-  } > ROM
+  } > VECTORS
 
   .text ORIGIN(ROM) :
   {
@@ -76,8 +76,8 @@ SECTIONS
 }
 
 /* Do not exceed this mark in the error messages below                                    | */
-ASSERT(ORIGIN(ROM) + LENGTH(ROM) == 0x10000, "
-ERROR(msp430-rt): The ROM memory region must end at address 0x10000. Check memory.x");
+ASSERT(ORIGIN(VECTORS) + LENGTH(VECTORS) == 0x10000, "
+ERROR(msp430-rt): The VECTORS memory region must end at address 0x10000. Check memory.x");
 
 ASSERT(ADDR(.vector_table) + SIZEOF(.vector_table) == 0x10000, "
 ERROR(msp430-rt): .vector_table is shorter than expected.
