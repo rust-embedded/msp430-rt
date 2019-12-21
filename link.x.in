@@ -15,6 +15,9 @@ then the function this points to will be called before the RAM is initialized. *
 PROVIDE(PreInit = PreInit_);
 
 /* # Default interrupt handler */
+EXTERN(DefaultHandler); /* If this line is not here, all unused interrupt
+                           handlers will be zeroed out instead of doing
+                           to the DefaultHandler! */
 PROVIDE(DefaultHandler = DefaultHandler_);
 
 /* XXX Are there use cases for making this user overridable? */

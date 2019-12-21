@@ -381,7 +381,7 @@ unsafe extern "C" fn Reset() -> ! {
 unsafe extern "C" fn PreInit_() {}
 
 #[no_mangle]
-extern "msp430-interrupt" fn DefaultHandler_() {
+extern "msp430-interrupt" fn DefaultHandler_() -> ! {
     // The interrupts are already disabled here.
     loop {
         // Prevent optimizations that can remove this loop.
@@ -389,12 +389,14 @@ extern "msp430-interrupt" fn DefaultHandler_() {
     }
 }
 
-extern "msp430-interrupt" {
-    fn DefaultHandler();
-}
-
 // Interrupts for generic application
 #[cfg(not(feature = "device"))]
 #[no_mangle]
 #[link_section = ".vector_table.interrupts"]
-static __INTERRUPTS: [unsafe extern "msp430-interrupt" fn(); 15] = [DefaultHandler; 15];
+static __INTERRUPTS: [unsafe extern "msp430-interrupt" fn(); 15] = [{
+    extern "msp430-interrupt" {
+        fn DefaultHandler();
+    }
+
+    DefaultHandler
+}; 15];
