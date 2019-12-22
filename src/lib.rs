@@ -1,387 +1,414 @@
-//! Minimal startup / runtime for MSP430 microcontrollers
+//! Startup code and minimal runtime for MSP430 microcontrollers
 //!
 //! This crate is based on [cortex-m-rt](https://docs.rs/cortex-m-rt)
 //! crate by Jorge Aparicio (@japaric).
 //!
+//! This crate contains all the required parts to build a `no_std` application (binary crate) that
+//! targets a MSP430 microcontroller.
+//!
 //! # Features
 //!
-//! This crate provides
+//! This crates takes care of:
 //!
-//! - Before main initialization of the `.bss` and `.data` sections.
+//! - The memory layout of the program. In particular, it populates the vector table so the device
+//! can boot correctly, and properly dispatch interrupts.
 //!
-//! - A minimal `start` lang item to support the standard `fn main()`
-//!   interface. (NOTE: The processor goes into infinite loop after
-//!   returning from `main`)
+//! - Initializing `static` variables before the program entry point.
 //!
-//! - A linker script that encodes the memory layout of a generic MSP430
-//!   microcontroller. This linker script is missing some information that must
-//!   be supplied through a `memory.x` file (see example below).
+//! This crate also provides the following attributes:
 //!
-//! - A default exception handler that can be overridden using the
-//!   [`default_handler!`](macro.default_handler.html) macro.
+//! - `#[entry]` to declare the entry point of the program
+//! - `#[pre_init]` to run code *before* `static` variables are initialized
 //!
-//! - A `_sheap` symbol at whose address you can locate a heap.
+//! This crate also implements a related attribute called `#[interrupt]`, which allows you
+//! to define interrupt handlers. However, since which interrupts are available depends on the
+//! microcontroller in use, this attribute should be re-exported and used from a PAC crate.
 //!
-//! # Example
+//! The documentation for these attributes can be found in the [Attribute Macros](#attributes)
+//! section.
 //!
-//! Creating a new bare metal project. (I recommend you use the
-//! [`msp430-quickstart`][qs] template as it takes of all the boilerplate
-//! shown here)
-//!
-//! [qs]: https://github.com/japaric/msp430-quickstart/
-//!
-//! ``` text
-//! $ cargo new --bin app && cd $_
-//!
-//! $ # add this crate as a dependency
-//! $ edit Cargo.toml && cat $_
-//! [dependencies.msp430-rt]
-//! version = "0.1.0"
-//!
-//! $ # tell Xargo which standard crates to build
-//! $ edit Xargo.toml && cat $_
-//! [dependencies.core]
-//! stage = 0
-//!
-//! [dependencies.compiler_builtins]
-//! features = ["mem"]
-//! stage = 1
-//!
-//! $ # memory layout of the device
-//! $ edit memory.x && cat $_
-//! MEMORY
-//! {
-//!   RAM              : ORIGIN = 0x0200, LENGTH = 0x0200
-//!   ROM              : ORIGIN = 0xC000, LENGTH = 0x3FDE
-//!   VECTORS          : ORIGIN = 0xFFE0, LENGTH = 0x0020
-//! }
-//!
-//! $ edit src/main.rs && cat $_
-//! ```
-//!
-//! ``` ignore,no_run
-//! #![feature(used)]
-//! #![no_std]
-//!
-//! extern crate msp430_rt;
-//!
-//! fn main() {
-//!     // do something here
-//! }
-//!
-//! // As we are not using interrupts, we just register a dummy catch all
-//! // handler
-//! #[link_section = ".vector_table.interrupts"]
-//! #[used]
-//! static INTERRUPTS: [extern "msp430-interrupt" fn(); 15] =
-//!     [default_handler; 15];
-//!
-//! extern "msp430-interrupt" fn default_handler() {
-//!     loop {
-//!     }
-//! }
-//! ```
-//!
-//! ``` text
-//! $ cargo install xargo
-//!
-//! $ xargo rustc --target msp430-none-elf --release -- \
-//!       -C link-arg=-Tlink.x \
-//!       -C link-arg=-mmcu=msp430g2553 -C link-arg=-nostartfiles \
-//!       -C linker=msp430-elf-gcc -Z linker-flavor=gcc
-//!
-//! $ msp430-elf-objdump -Cd $(find target -name app) | head
-//!
-//! Disassembly of section .text:
-//!
-//! 0000c000 <msp430_rt::reset_handler::h77ef04785a7efdda>:
-//!     c000:	31 40 00 04 	mov	#1024,	r1	;#0x0400
-//!     c004:	30 40 28 c0 	br	#0xc028		;
-//! ```
-//!
-//! # Symbol interfaces
-//!
-//! This crate makes heavy use of symbols, linker sections and linker scripts to
-//! provide most of its functionality. Below are described the main symbol
-//! interfaces.
-//!
-//! ## `DEFAULT_HANDLER`
-//!
-//! This weak symbol can be overridden to override the default exception handler
-//! that this crate provides. It's recommended that you use the
-//! `default_handler!` to do the override, but below is shown how to manually
-//! override the symbol:
-//!
-//! ``` ignore,no_run
-//! #[no_mangle]
-//! pub extern "msp430-interrupt" fn DEFAULT_HANDLER() {
-//!     // do something here
-//! }
-//! ```
-//!
-//! ## `.vector_table.interrupts`
-//!
-//! This linker section is used to register interrupt handlers in the vector
-//! table. The recommended way to use this section is to populate it, once, with
-//! an array of *weak* functions that just call the `DEFAULT_HANDLER` symbol.
-//! Then the user can override them by name.
-//!
-//! ### Example
-//!
-//! Populating the vector table
-//!
-//! ``` ignore,no_run
-//! // Number of interrupts the device has
-//! const N: usize = 15;
-//!
-//! // Default interrupt handler that just calls the `DEFAULT_HANDLER`
-//! #[linkage = "weak"]
-//! #[naked]
-//! #[no_mangle]
-//! extern "msp430-interrupt" fn WWDG() {
-//!     unsafe {
-//!         asm!("b DEFAULT_HANDLER" :::: "volatile");
-//!         core::intrinsics::unreachable();
-//!     }
-//! }
-//!
-//! // You need one function per interrupt handler
-//! #[linkage = "weak"]
-//! #[naked]
-//! #[no_mangle]
-//! extern "msp430-interrupt" fn WWDG() {
-//!     unsafe {
-//!         asm!("b DEFAULT_HANDLER" :::: "volatile");
-//!         core::intrinsics::unreachable();
-//!     }
-//! }
-//!
-//! // ..
-//!
-//! // Use `None` for reserved spots in the vector table
-//! #[link_section = ".vector_table.interrupts"]
-//! #[no_mangle]
-//! #[used]
-//! static INTERRUPTS: [Option<extern "msp430-interrupt" fn()>; N] = [
-//!     Some(WWDG),
-//!     Some(PVD),
-//!     // ..
-//! ];
-//! ```
-//!
-//! Overriding an interrupt (this can be in a different crate)
-//!
-//! ``` ignore,no_run
-//! // the name must match the name of one of the weak functions used to
-//! // populate the vector table.
-//! #[no_mangle]
-//! pub extern "msp430-interrupt" fn WWDG() {
-//!     // do something here
-//! }
-//! ```
+//! # Requirements
 //!
 //! ## `memory.x`
 //!
-//! This file supplies the information about the device to the linker.
+//! This crate expects the user, or some other crate, to provide the memory layout of the target
+//! device via a linker script named `memory.x`. This section covers the contents of `memory.x`
 //!
 //! ### `MEMORY`
 //!
-//! The main information that this file must provide is the memory layout of
-//! the device in the form of the `MEMORY` command. The command is documented
-//! [here](https://sourceware.org/binutils/docs/ld/MEMORY.html), but at a minimum you'll want to
-//! create two memory regions: one for Flash memory and another for RAM.
+//! The linker script must specify the memory available in the device as, at least, three `MEMORY`
+//! regions: one named `ROM`, one named `RAM`, and one named `VECTORS`. The `.text` and `.rodata`
+//! sections of the program will be placed in the `ROM` region, whereas the `.bss` and `.data`
+//! sections, as well as the heap, will be placed in the `RAM` region. The `.vector_table` section,
+//! which including the interrupt vectors and reset address, will be placed in the `VECTORS`
+//! region at the end of flash. The `ROM` region should end at the address the `VECTORS` region
+//! begins.
 //!
-//! The program instructions (the `.text` section) will be stored in the memory
-//! region named ROM, and the program `static` variables (the sections `.bss`
-//! and `.data`) will be allocated in the memory region named RAM.
+//! A `VECTORS` region is required because between (_and within_) msp430 device families:
+//! * Devices do not have a constant single vector table size.
+//! * Devices do not have a constant vector table start address.
+//! Consult your Family User's Guide (e.g. MSP430x5xx Family User's Guide, slau208),
+//! particularly the Memory Map section, and your device's datasheet (e.g. msp430g2553) for
+//! information on vector table layout and size. _You may be able to get more program space if
+//! your device's datasheet explicitly marks a contiguous set of vectors as unused!_
 //!
-//! ### `_stack_start`
 //!
-//! This symbol provides the address at which the call stack will be allocated.
-//! The call stack grows downwards so this address is usually set to the highest
-//! valid RAM address plus one (this *is* an invalid address but the processor
-//! will decrement the stack pointer *before* using its value as an address).
-//!
-//! If omitted this symbol value will default to `ORIGIN(RAM) + LENGTH(RAM)`.
-//!
-//! #### Example
-//!
-//! Allocating the call stack on a different RAM region.
-//!
-//! ```,ignore
+//! ``` text
+//! /* Linker script for the MSP430G2553 */
 //! MEMORY
 //! {
-//!   /* call stack will go here */
-//!   CCRAM : ORIGIN = 0x10000000, LENGTH = 8K
-//!   FLASH : ORIGIN = 0x08000000, LENGTH = 256K
-//!   /* static variables will go here */
-//!   RAM : ORIGIN = 0x20000000, LENGTH = 40K
+//!   RAM : ORIGIN = 0x0200, LENGTH = 0x0200
+//!   ROM : ORIGIN = 0xC000, LENGTH = 0x3FE0
+//!   VECTORS : ORIGIN = 0xFFE0, LENGTH = 0x20
 //! }
-//!
-//! _stack_start = ORIGIN(CCRAM) + LENGTH(CCRAM);
 //! ```
 //!
-//! ### `_stext`
+//! # An example
 //!
-//! This symbol indicates where the `.text` section will be located. If not
-//! specified in the `memory.x` file it will default to right after the vector
-//! table -- the vector table is always located at the start of the FLASH
-//! region.
+//! This section presents a minimal application built on top of `msp430-rt`.
 //!
-//! The main use of this symbol is leaving some space between the vector table
-//! and the `.text` section unused. This is required on some microcontrollers
-//! that store some configuration information right after the vector table.
+//! ``` ignore
+//! // IMPORTANT the standard `main` interface is not used because it requires nightly
+//! #![no_main]
+//! #![no_std]
 //!
-//! #### Example
+//! extern crate msp430_rt;
+//! // Simple panic handler that infinitely loops.
+//! extern crate panic_msp430;
 //!
-//! Locate the `.text` section 1024 bytes after the start of the FLASH region.
+//! use msp430_rt::entry;
 //!
-//! ```,ignore
-//! _stext = ORIGIN(FLASH) + 0x400;
-//! ```
+//! // use `main` as the entry point of this application
+//! // `main` is not allowed to return
+//! #[entry]
+//! fn main() -> ! {
+//!     // initialization
 //!
-//! ### `_sheap`
-//!
-//! This symbol is located in RAM right after the `.bss` and `.data` sections.
-//! You can use the address of this symbol as the start address of a heap
-//! region. This symbol is 4 byte aligned so that address will be a multiple of 4.
-//!
-//! #### Example
-//!
-//! ```,ignore
-//! extern crate some_allocator;
-//!
-//! // Size of the heap in bytes
-//! const SIZE: usize = 1024;
-//!
-//! extern "C" {
-//!     static mut _sheap: u8;
-//! }
-//!
-//! fn main() {
-//!     unsafe {
-//!         let start_address = &mut _sheap as *mut u8;
-//!         some_allocator::initialize(start_address, SIZE);
+//!     loop {
+//!         // application logic
 //!     }
 //! }
+//!
 //! ```
+//!
+//! To actually build this program you need to place a `memory.x` linker script somewhere the linker
+//! can find it, e.g. in the current directory; and then link the program using `msp430-rt`'s
+//! linker script: `link.x`. The required steps are shown below:
+//!
+//! ``` text
+//! $ cat > memory.x <<EOF
+//! /* Memory layout of the MSP430G2553 */
+//! MEMORY
+//! {
+//!   RAM : ORIGIN = 0x0200, LENGTH = 0x0200
+//!   ROM : ORIGIN = 0xC000, LENGTH = 0x3FE0
+//!   VECTORS : ORIGIN = 0xFFE0, LENGTH = 0x20
+//! }
+//! EOF
+//!
+//! $ xargo rustc --target msp430-none-elf -- \
+//!       -C link-arg=-nostartfiles -C link-arg=-Tlink.x
+//!
+//! $ file target/msp430-none-elf/debug/app
+//! app: ELF 32-bit LSB executable, TI msp430, version 1 (embedded), statically linked, not stripped
+//! ```
+//!
+//! # Optional features
+//!
+//! ## `device`
+//!
+//! If this feature is disabled then this crate populates the whole vector table. All the interrupts
+//! in the vector table, even the ones unused by the target device, will be bound to the default
+//! interrupt handler. This makes the final application device agnostic: you will be able to run it
+//! on any MSP430 device -- provided that you correctly specified its memory layout in `memory.x`
+//! -- without hitting undefined behavior.
+//!
+//! If this feature is enabled then the interrupts section of the vector table is left unpopulated
+//! and some other crate, or the user, will have to populate it. This mode is meant to be used in
+//! conjunction with PAC crates generated using `svd2rust`. Those *PAC crates* will populate the
+//! missing part of the vector table when their `"rt"` feature is enabled.
+//!
+//! # Inspection
+//!
+//! This section covers how to inspect a binary that builds on top of `msp430-rt`.
+//!
+//! ## Sections (`size`)
+//!
+//! `msp430-rt` uses standard sections like `.text`, `.rodata`, `.bss` and `.data` as one would
+//! expect. `msp430-rt` separates the vector table in its own section, named `.vector_table`. This
+//! lets you distinguish how much space is taking the vector table in Flash vs how much is being
+//! used by actual instructions (`.text`) and constants (`.rodata`).
+//!
+//! ``` text
+//! $ size -Ax target/msp430-none-elf/examples/app
+//! section              size     addr
+//! .vector_table        0x20   0xffe0
+//! .text                0x44   0xc000
+//! .rodata               0x0   0xc044
+//! .bss                  0x0    0x200
+//! .data                 0x0    0x200
+//! .MSP430.attributes   0x17      0x0
+//! Total                0x7b
+//! ```
+//!
+//! Without the `-A` argument `size` reports the sum of the sizes of `.text`, `.rodata` and
+//! `.vector_table` under "text".
+//!
+//! ``` text
+//! $ size target/msp430-none-elf/examples/app
+//!    text    data     bss     dec     hex filename
+//!     100       0       0     100      64 target/msp430-none-elf/release/app
+//! ```
+//!
+//! ## Symbols (`objdump`, `nm`)
+//!
+//! One will always find the following (unmangled) symbols in `msp430-rt` applications:
+//!
+//! - `ResetTrampoline`. This is the reset handler. The microcontroller will executed this function
+//! upon booting. This trampoline simply initializes the stack pointer and the jumps to `Reset`.
+//!
+//! - `Reset`. This function will call the user program entry point (See `#[entry]`) using the
+//! `main` symbol so you may also find that symbol in your program; if you do, `main` will contain
+//! your application code. Some other times `main` gets inlined into `Reset` and you won't find it.
+//!
+//! - `DefaultHandler`. This is the default interrupt handler. If not overridden using `#[interrupt]
+//! fn DefaultHandler(..` this will be an infinite loop.
+//!
+//! - `__RESET_VECTOR`. This is the reset vector, a pointer into `ResetTrampoline`. This vector is
+//! located at the end of the `.vector_table` section.
+//!
+//! - `__INTERRUPTS`. This is the device specific interrupt portion of the vector table. This array
+//! is located right before `__RESET_VECTOR` in the `.vector_table` section.
+//!
+//! - `PreInit`. This is a function to be run before RAM is initialized. It defaults to an empty
+//! function. The function called can be changed using the `#[pre_init]` attribute. The empty
+//! function is not optimized out by default, but if an empty function is marked with the
+//! `#[pre_init]` attribute then the function call will be optimized out.
+//!
+//! If you overrode any interrupt handler you'll find it as an unmangled symbol, e.g. `NMI` or
+//! `WDT`, in the output of `objdump`,
+//!
+//! # Advanced usage
+//!
+//! ## Setting the program entry point
+//!
+//! This section describes how `#[entry]` is implemented. This information is useful to developers
+//! who want to provide an alternative to `#[entry]` that provides extra guarantees.
+//!
+//! The `Reset` handler will call a symbol named `main` (unmangled) *after* initializing `.bss` and
+//! `.data`. `#[entry]` provides this symbol in its expansion:
+//!
+//! ``` ignore
+//! #[entry]
+//! fn main() -> ! {
+//!     /* user code */
+//! }
+//!
+//! // expands into
+//!
+//! #[export_name = "main"]
+//! extern "C" fn randomly_generated_string() -> ! {
+//!     /* user code */
+//! }
+//! ```
+//!
+//! The unmangled `main` symbol must have signature `extern "C" fn() -> !` or its invocation from
+//! `Reset`  will result in undefined behavior.
+//!
+//! ## Incorporating device specific interrupts
+//!
+//! This section covers how an external crate can insert device specific interrupt handlers into the
+//! vector table. Most users don't need to concern themselves with these details, but if you are
+//! interested in how device crates generated using `svd2rust` integrate with `msp430-rt` read on.
+//!
+//! The information in this section applies when the `"device"` feature has been enabled.
+//!
+//! ### `__INTERRUPTS`
+//!
+//! The external crate must provide the interrupts portion of the vector table via a `static`
+//! variable named`__INTERRUPTS` (unmangled) that must be placed in the `.vector_table.interrupts`
+//! section of its object file.
+//!
+//! This `static` variable will be placed at `ORIGIN(VECTORS)`. This address corresponds to the
+//! spot where IRQ0 (IRQ number 0) is located.
+//!
+//! To conform to the MSP430 ABI `__INTERRUPTS` must be an array of function pointers; some spots
+//! in this array may need to be set to 0 if they are marked as *reserved* in the data sheet /
+//! reference manual. We recommend using a `union` to set the reserved spots to `0`; `None`
+//! (`Option<fn()>`) may also work but it's not guaranteed that the `None` variant will *always* be
+//! represented by the value `0`.
+//!
+//! Let's illustrate with an artificial example where a device only has two interrupt: `Foo`, with
+//! IRQ number = 2, and `Bar`, with IRQ number = 4.
+//!
+//! ``` ignore
+//! union Vector {
+//!     handler: extern "msp430-interrupt" fn(),
+//!     reserved: usize,
+//! }
+//!
+//! extern "msp430-interrupt" {
+//!     fn Foo();
+//!     fn Bar();
+//! }
+//!
+//! #[link_section = ".vector_table.interrupts"]
+//! #[no_mangle]
+//! static __INTERRUPTS: [Vector; 15] = [
+//!     // 0-1: Reserved
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!
+//!     // 2: Foo
+//!     Vector { handler: Foo },
+//!
+//!     // 3: Reserved
+//!     Vector { reserved: 0 },
+//!
+//!     // 4: Bar
+//!     Vector { handler: Bar },
+//!
+//!     // 5-14: Reserved
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//!     Vector { reserved: 0 },
+//! ];
+//! ```
+//!
+//! ### `device.x`
+//!
+//! Linking in `__INTERRUPTS` creates a bunch of undefined references. If the user doesn't set a
+//! handler for *all* the device specific interrupts then linking will fail with `"undefined
+//! reference"` errors.
+//!
+//! We want to provide a default handler for all the interrupts while still letting the user
+//! individually override each interrupt handler. In C projects, this is usually accomplished using
+//! weak aliases declared in external assembly files. In Rust, we could achieve something similar
+//! using `global_asm!`, but that's an unstable feature.
+//!
+//! A solution that doesn't require `global_asm!` or external assembly files is to use the `PROVIDE`
+//! command in a linker script to create the weak aliases. This is the approach that `msp430-rt`
+//! uses; when the `"device"` feature is enabled `msp430-rt`'s linker script (`link.x`) depends on
+//! a linker script named `device.x`. The crate that provides `__INTERRUPTS` must also provide this
+//! file.
+//!
+//! For our running example the `device.x` linker script looks like this:
+//!
+//! ``` text
+//! /* device.x */
+//! PROVIDE(Foo = DefaultHandler);
+//! PROVIDE(Bar = DefaultHandler);
+//! ```
+//!
+//! This weakly aliases both `Foo` and `Bar`. `DefaultHandler` is the default interrupt handler.
+//!
+//! Because this linker script is provided by a dependency of the final application the dependency
+//! must contain build script that puts `device.x` somewhere the linker can find. An example of such
+//! build script is shown below:
+//!
+//! ``` ignore
+//! use std::{env, fs::File, io::Write, path::PathBuf};
+//!
+//! fn main() {
+//!     // Put the linker script somewhere the linker can find it
+//!     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
+//!     File::create(out.join("device.x"))
+//!         .unwrap()
+//!         .write_all(include_bytes!("device.x"))
+//!         .unwrap();
+//!     println!("cargo:rustc-link-search={}", out.display());
+//! }
+//! ```
+//!
+//! [attr-entry]: attr.entry.html
+//! [attr-exception]: attr.exception.html
+//! [attr-pre_init]: attr.pre_init.html
 
-#![cfg_attr(target_arch = "msp430", feature(core_intrinsics))]
 #![deny(missing_docs)]
 #![feature(abi_msp430_interrupt)]
-#![feature(asm)]
-#![feature(lang_items)]
-#![feature(linkage)]
-#![feature(naked_functions)]
-#![feature(used)]
 #![no_std]
 
-extern crate msp430;
-#[cfg(target_arch = "msp430")]
-extern crate r0;
+use msp430::asm;
+pub use msp430_rt_macros::interrupt;
+pub use msp430_rt_macros::{entry, pre_init};
 
-#[cfg(not(test))]
-mod lang_items;
+/// Returns a pointer to the start of the heap
+///
+/// The returned pointer is guaranteed to be 4-byte aligned.
+#[inline]
+pub fn heap_start() -> *mut u32 {
+    extern "C" {
+        static mut __sheap: u32;
+    }
 
-#[cfg(target_arch = "msp430")]
-extern "C" {
-    // NOTE `rustc` forces this signature on us. See `src/lang_items.rs`
-    fn main(argc: isize, argv: *const *const u8) -> isize;
-
-    // Boundaries of the .bss section
-    static mut _ebss: u16;
-    static mut _sbss: u16;
-
-    // Boundaries of the .data section
-    static mut _edata: u16;
-    static mut _sdata: u16;
-
-    // Initial values of the .data section (stored in ROM)
-    static _sidata: u16;
+    unsafe { &mut __sheap }
 }
 
-/// The reset handler
-///
-/// This is the entry point of all programs
-#[cfg(target_arch = "msp430")]
-unsafe extern "C" fn reset_handler() -> ! {
+extern "msp430-interrupt" {
+    fn ResetTrampoline() -> !;
+}
+
+#[link_section = ".__RESET_VECTOR"]
+#[no_mangle]
+static __RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = ResetTrampoline;
+
+// The reset handler
+#[no_mangle]
+#[link_section = ".Reset"]
+unsafe extern "C" fn Reset() -> ! {
+    extern "C" {
+        // Boundaries of the .bss section
+        static mut _ebss: u16;
+        static mut _sbss: u16;
+
+        // Boundaries of the .data section
+        static mut _edata: u16;
+        static mut _sdata: u16;
+
+        // Initial values of the .data section (stored in ROM)
+        static _sidata: u16;
+    }
+
+    extern "Rust" {
+        fn PreInit();
+        fn main() -> !;
+    }
+
+    PreInit();
+
     r0::zero_bss(&mut _sbss, &mut _ebss);
     r0::init_data(&mut _sdata, &mut _edata, &_sidata);
 
-    // Neither `argc` or `argv` make sense in bare metal context so we
-    // just stub them
-    main(0, ::core::ptr::null());
-
-    // If `main` returns, then we go into "reactive" mode and simply attend
-    // interrupts as they occur.
-    loop {
-        // Prevent optimizations that can remove this loop.
-        ::msp430::asm::barrier();
-    }
-
-    // This is the real entry point
-    #[link_section = ".vector_table.reset_handler"]
-    #[naked]
-    unsafe extern "msp430-interrupt" fn trampoline() -> ! {
-        // "trampoline" to get to the real reset handler.
-        asm!("mov #_stack_start, r1
-              br $0"
-             :
-             : "i"(reset_handler as unsafe extern "C" fn() -> !)
-             :
-             : "volatile"
-        );
-
-        ::core::intrinsics::unreachable()
-    }
-
-    #[link_section = ".vector_table.reset_vector"]
-    #[used]
-    static RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = trampoline;
+    main()
 }
 
-#[export_name = "DEFAULT_HANDLER"]
-#[linkage = "weak"]
-extern "msp430-interrupt" fn default_handler() {
+#[no_mangle]
+unsafe extern "C" fn PreInit_() {}
+
+#[no_mangle]
+extern "msp430-interrupt" fn DefaultHandler_() -> ! {
     // The interrupts are already disabled here.
     loop {
         // Prevent optimizations that can remove this loop.
-        ::msp430::asm::barrier();
+        asm::barrier();
     }
 }
 
-// make sure the compiler emits the DEFAULT_HANDLER symbol so the linker can
-// find it!
-#[used]
-static KEEP: extern "msp430-interrupt" fn() = default_handler;
+// Interrupts for generic application
+#[cfg(not(feature = "device"))]
+#[no_mangle]
+#[link_section = ".vector_table.interrupts"]
+static __INTERRUPTS: [unsafe extern "msp430-interrupt" fn(); 15] = [{
+    extern "msp430-interrupt" {
+        fn DefaultHandler();
+    }
 
-/// This macro lets you override the default exception handler
-///
-/// The first and only argument to this macro is the path to the function that
-/// will be used as the default handler. That function must have signature
-/// `fn()`
-///
-/// # Examples
-///
-/// ``` ignore
-/// default_handler!(foo::bar);
-///
-/// mod foo {
-///     pub fn bar() {
-///         loop {}
-///     }
-/// }
-/// ```
-#[macro_export]
-macro_rules! default_handler {
-    ($path:path) => {
-        #[allow(non_snake_case)]
-        #[doc(hidden)]
-        #[no_mangle]
-        pub unsafe extern "msp430-interrupt" fn DEFAULT_HANDLER() {
-            // type checking
-            let f: fn() = $path;
-            f();
-        }
-    };
-}
+    DefaultHandler
+}; 15];
