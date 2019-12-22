@@ -24,7 +24,8 @@
 //! to define interrupt handlers. However, since which interrupts are available depends on the
 //! microcontroller in use, this attribute should be re-exported and used from a PAC crate.
 //!
-//! The documentation for these attributes can be found in the [Reexports](#reexports) section.
+//! The documentation for these attributes can be found in the [Attribute Macros](#attributes)
+//! section.
 //!
 //! # Requirements
 //!
@@ -35,17 +36,30 @@
 //!
 //! ### `MEMORY`
 //!
-//! The linker script must specify the memory available in the device as, at least, two `MEMORY`
-//! regions: one named `FLASH` and one named `RAM`. The `.text` and `.rodata` sections of the
-//! program will be placed in the `FLASH` region, whereas the `.bss` and `.data` sections, as well
-//! as the heap,will be placed in the `RAM` region.
+//! The linker script must specify the memory available in the device as, at least, three `MEMORY`
+//! regions: one named `ROM`, one named `RAM`, and one named `VECTORS`. The `.text` and `.rodata`
+//! sections of the program will be placed in the `ROM` region, whereas the `.bss` and `.data`
+//! sections, as well as the heap, will be placed in the `RAM` region. The `.vector_table` section,
+//! which including the interrupt vectors and reset address, will be placed in the `VECTORS`
+//! region at the end of flash. The `ROM` region should end at the address the `VECTORS` region
+//! begins.
+//!
+//! A `VECTORS` region is required because between (_and within_) msp430 device families:
+//! * Devices do not have a constant single vector table size.
+//! * Devices do not have a constant vector table start address.
+//! Consult your Family User's Guide (e.g. MSP430x5xx Family User's Guide, slau208),
+//! particularly the Memory Map section, and your device's datasheet (e.g. msp430g2553) for
+//! information on vector table layout and size. _You may be able to get more program space if
+//! your device's datasheet explicitly marks a contiguous set of vectors as unused!_
+//!
 //!
 //! ``` text
 //! /* Linker script for the MSP430G2553 */
 //! MEMORY
 //! {
 //!   RAM : ORIGIN = 0x0200, LENGTH = 0x0200
-//!   ROM : ORIGIN = 0xC000, LENGTH = 0x4000
+//!   ROM : ORIGIN = 0xC000, LENGTH = 0x3FE0
+//!   VECTORS : ORIGIN = 0xFFE0, LENGTH = 0x20
 //! }
 //! ```
 //!
@@ -58,10 +72,10 @@
 //! #![no_main]
 //! #![no_std]
 //!
-//! extern crate msp430;
 //! extern crate msp430_rt;
+//! // Simple panic handler that infinitely loops.
+//! extern crate panic_msp430;
 //!
-//! use msp430::asm;
 //! use msp430_rt::entry;
 //!
 //! // use `main` as the entry point of this application
@@ -75,13 +89,6 @@
 //!     }
 //! }
 //!
-//! // Panicking behavior
-//! #[panic_handler]
-//! fn panic(_: &PanicInfo) -> ! {
-//!     loop {
-//!         asm::barrier();
-//!     }
-//! }
 //! ```
 //!
 //! To actually build this program you need to place a `memory.x` linker script somewhere the linker
@@ -94,7 +101,8 @@
 //! MEMORY
 //! {
 //!   RAM : ORIGIN = 0x0200, LENGTH = 0x0200
-//!   ROM : ORIGIN = 0xC000, LENGTH = 0x4000
+//!   ROM : ORIGIN = 0xC000, LENGTH = 0x3FE0
+//!   VECTORS : ORIGIN = 0xFFE0, LENGTH = 0x20
 //! }
 //! EOF
 //!
@@ -132,7 +140,7 @@
 //! used by actual instructions (`.text`) and constants (`.rodata`).
 //!
 //! ``` text
-//! $ size -Ax target/thumbv7m-none-eabi/examples/app
+//! $ size -Ax target/msp430-none-elf/examples/app
 //! section              size     addr
 //! .vector_table        0x20   0xffe0
 //! .text                0x44   0xc000
@@ -221,7 +229,7 @@
 //! variable named`__INTERRUPTS` (unmangled) that must be placed in the `.vector_table.interrupts`
 //! section of its object file.
 //!
-//! This `static` variable will be placed at `ORIGIN(FLASH) + 0x40`. This address corresponds to the
+//! This `static` variable will be placed at `ORIGIN(VECTORS)`. This address corresponds to the
 //! spot where IRQ0 (IRQ number 0) is located.
 //!
 //! To conform to the MSP430 ABI `__INTERRUPTS` must be an array of function pointers; some spots
@@ -235,11 +243,11 @@
 //!
 //! ``` ignore
 //! union Vector {
-//!     handler: extern "msp430-abi" fn(),
+//!     handler: extern "msp430-interrupt" fn(),
 //!     reserved: usize,
 //! }
 //!
-//! extern "msp430-abi" {
+//! extern "msp430-interrupt" {
 //!     fn Foo();
 //!     fn Bar();
 //! }
@@ -318,6 +326,10 @@
 //!     println!("cargo:rustc-link-search={}", out.display());
 //! }
 //! ```
+//!
+//! [attr-entry]: attr.entry.html
+//! [attr-exception]: attr.exception.html
+//! [attr-pre_init]: attr.pre_init.html
 
 #![deny(missing_docs)]
 #![feature(abi_msp430_interrupt)]
