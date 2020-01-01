@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [v0.2.0]- 2020-01-01
+
+- [breaking-change] Interrupts are now implemented using an attribute macro
+  called `#[interrupt]`, provided by the [`msp430-rt-macros`](macros) package.
+- [breaking-change] Old compilers using the `Termination` trait will no longer
+  compile this crate.
+- [breaking-change] The `INTERRUPTS` array is now called `__INTERRUPTS` for
+  parity with [`cortex-m-rt`],
+  and the linker script has been updated to accomodate. `^0.1.0` PACs will not
+  work properly with this crate.
+- [breaking-change] If the `device` feature is enabled, the linker script
+  expects a PAC, such as [`msp430g2553`](https://github.com/pftbest/msp430g2553),
+  to provide interrupt vector addresses via the `device.x` file. This should be
+  transparent to the user due to `build.rs`.
+- [breaking-change] The `default_handler` macro was removed; a default
+  interrupt handler is defined defining an function called `DefaultHandler`
+  with the `#[interrupt]` attribute.
+- [breaking-change] An application's entry point is now defined using the
+  `#[entry]` attribute macro, with function signature `fn() -> !`
+- Add `#[pre_init]` attribute macro, for parity with [`cortex-m-rt`].
+- Removed instances of `asm` macros. Use a separate assembly file called
+  `asm.s` and `libmsp430.a` for stable assembly when absolutely necessary (at
+  the cost of some inlining). This should be transparent to the user thanks
+  to `build.rs`.
+- Reset handler name changed from `reset_handler` to `Reset`; this is invisible
+  to users.
+- All but one required feature have either stabilized (`used`) or are no longer
+  used in the crate (`asm`, `lang_items`, `linkage`, `naked_functions`). The
+  only remaining unstable feature is [`abi_msp430_interrupt`](https://github.com/rust-lang/rust/issues/38487).
+
 ## [v0.1.4] - 2019-11-01
 
 - Removed panic_implementation
@@ -23,16 +53,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [v0.1.1] - 2018-02-02
 
-- Import `Termination` trait code from [cortex-m-rt] to permit compiling with
+- Import `Termination` trait code from [`cortex-m-rt`] to permit compiling with
 recent nightlies.
 
 ## v0.1.0 - 2017-07-22
 
 Initial release
 
-[cortex-m-rt]: https://github.com/japaric/cortex-m-rt
+[`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...HEAD
+[v0.2.0]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...msp_v0.2.0
 [v0.1.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.3...msp_v0.1.4
 [v0.1.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.2...msp_v0.1.3
 [v0.1.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.1...msp_v0.1.2
