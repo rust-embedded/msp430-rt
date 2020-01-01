@@ -32,8 +32,8 @@ Initial release
 
 [cortex-m-rt]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.4...HEAD
-[v0.1.3]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.3...msp_v0.1.4
-[v0.1.3]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.2...msp_v0.1.3
-[v0.1.2]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.1...msp_v0.1.2
-[v0.1.1]: https://github.com/pftbest/msp430-rt/compare/msp_v0.1.0...msp_v0.1.1
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...HEAD
+[v0.1.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.3...msp_v0.1.4
+[v0.1.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.2...msp_v0.1.3
+[v0.1.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.1...msp_v0.1.2
+[v0.1.1]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.0...msp_v0.1.1
