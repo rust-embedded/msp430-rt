@@ -1,7 +1,8 @@
 [package]
 authors = [
     "Jorge Aparicio <jorge@japaric.io>",
-    "Vadzim Dambrouski <pftbest@gmail.com>"
+    "Vadzim Dambrouski <pftbest@gmail.com>",
+    "William D. Jones <thor0505@comcast.net>"
 ]
 categories = ["embedded", "no-std"]
 description = "Minimal runtime / startup for MSP430 microcontrollers"
@@ -10,7 +11,7 @@ edition = "2018"
 keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 name = "msp430-rt"
-repository = "https://github.com/pftbest/msp430-rt"
+repository = "https://github.com/rust-embedded/msp430-rt"
 version = "0.2.0"
 
 [dependencies]

@@ -1,7 +1,14 @@
 [package]
+authors = ["Jorge Aparicio <jorge@japaric.io>"]
+categories = ["embedded", "no-std"]
+description = "Attributes re-exported in `msp430-rt`"
+documentation = "https://docs.rs/msp430-rt"
+keywords = ["msp430", "runtime", "startup"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rust-embedded/msp430-rt"
 name = "msp430-rt-macros"
 version = "0.2.0"
-authors = ["Jorge Aparicio <jorge@japaric.io>"]
+edition = "2018"
 
 [lib]
 proc-macro = true
