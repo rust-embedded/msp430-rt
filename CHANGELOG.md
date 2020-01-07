@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [v0.2.1]- 2020-01-07
+
+### Fixed
+- Correct build.rs script so that msp430-rt is only recompiled if `link.x.in`
+  changed, rather than `link.x`. The latter triggers unconditional rebuilds.
+
 ## [v0.2.0]- 2020-01-01
 
 - [breaking-change] Interrupts are now implemented using an attribute macro
@@ -62,7 +68,8 @@ Initial release
 
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...HEAD
+[v0.2.1]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...msp_v0.2.1
 [v0.2.0]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...msp_v0.2.0
 [v0.1.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.3...msp_v0.1.4
 [v0.1.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.2...msp_v0.1.3
