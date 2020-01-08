@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [v0.2.2]- 2020-01-07
+
+### Fixed
+- Fix entry point in linker script to be `ResetTrampoline` instead of `Reset`.
+  This caused subtle breakage during debugging where invoking and exiting `gdb`
+  without forcing a `monitor reset` (_which you should be doing anyway_).
+  Specifically, `gdb` would reset the program counter to skip the stack
+  initialization code in `ResetTrampoline`, which can leak stack memory.
+
 ## [v0.2.1]- 2020-01-07
 
 ### Fixed
@@ -68,7 +77,8 @@ Initial release
 
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...HEAD
+[v0.2.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...msp_v0.2.2
 [v0.2.1]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...msp_v0.2.1
 [v0.2.0]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...msp_v0.2.0
 [v0.1.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.3...msp_v0.1.4

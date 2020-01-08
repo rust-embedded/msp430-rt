@@ -1,7 +1,7 @@
 INCLUDE memory.x
 
 /* Entry point */
-ENTRY(Reset);
+ENTRY(ResetTrampoline);
 EXTERN(__RESET_VECTOR);
 
 /* Create an undefined reference to the INTERRUPTS symbol. This is required to
