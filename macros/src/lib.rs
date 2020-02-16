@@ -15,8 +15,9 @@ use proc_macro2::Span;
 use quote::quote;
 use rand::{Rng, SeedableRng};
 use syn::{
-    parse, parse_macro_input, spanned::Spanned, Ident, Item, ItemFn, ItemStatic, ReturnType, Stmt,
-    Type, Visibility,
+    parse, parse_macro_input, spanned::Spanned, ArgCaptured, FnArg, Ident, Item, ItemFn,
+    ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Type, TypePath,
+    Visibility,
 };
 
 /// Attribute to declare the entry point of the program
@@ -43,7 +44,7 @@ use syn::{
 /// # #![no_main]
 /// # use msp430_rt_macros::entry;
 /// #[entry]
-/// fn main() -> ! {
+/// fn main(cs: CriticalSection) -> ! {
 ///     loop {
 ///         /* .. */
 ///     }
@@ -56,7 +57,7 @@ use syn::{
 /// # #![no_main]
 /// # use msp430_macros::entry;
 /// #[entry]
-/// fn main() -> ! {
+/// fn main(cs: CriticalSection) -> ! {
 ///     static mut FOO: u32 = 0;
 ///
 ///     let foo: &'static mut u32 = FOO;
@@ -71,13 +72,19 @@ use syn::{
 /// ```
 #[proc_macro_attribute]
 pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
+    if !args.is_empty() {
+        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
+            .to_compile_error()
+            .into();
+    }
+
     let f = parse_macro_input!(input as ItemFn);
 
     // check the function signature
     let valid_signature = f.constness.is_none()
         && f.vis == Visibility::Inherited
         && f.abi.is_none()
-        && f.decl.inputs.is_empty()
+        && f.decl.inputs.len() == 1
         && f.decl.generics.params.is_empty()
         && f.decl.generics.where_clause.is_none()
         && f.decl.variadic.is_none()
@@ -88,61 +95,57 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
                 _ => false,
             },
         };
+    let cs_decl = get_critical_section_arg(f.decl.inputs.first().unwrap().into_value());
 
-    if !valid_signature {
-        return parse::Error::new(
+    if let Some(cs_decl) = cs_decl.filter(|_| valid_signature) {
+        // XXX should we blacklist other attributes?
+        let attrs = f.attrs;
+        let unsafety = f.unsafety;
+        let hash = random_ident();
+        let (statics, stmts) = match extract_static_muts(f.block.stmts) {
+            Err(e) => return e.to_compile_error().into(),
+            Ok(x) => x,
+        };
+
+        let vars = statics
+            .into_iter()
+            .map(|var| {
+                let attrs = var.attrs;
+                let ident = var.ident;
+                let ty = var.ty;
+                let expr = var.expr;
+
+                quote!(
+                    #[allow(non_snake_case)]
+                    let #ident: &'static mut #ty = unsafe {
+                        #(#attrs)*
+                        static mut #ident: #ty = #expr;
+
+                        &mut #ident
+                    };
+                )
+            })
+            .collect::<Vec<_>>();
+
+        quote!(
+            #[export_name = "main"]
+            #(#attrs)*
+            pub #unsafety fn #hash() -> ! {
+                #cs_decl
+                #(#vars)*
+
+                #(#stmts)*
+            }
+        )
+        .into()
+    } else {
+        parse::Error::new(
             f.span(),
-            "`#[entry]` function must have signature `[unsafe] fn() -> !`",
+            "`#[entry]` function must have signature `[unsafe] fn(<ident> : CriticalSection) -> !`",
         )
         .to_compile_error()
-        .into();
+        .into()
     }
-
-    if !args.is_empty() {
-        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
-            .to_compile_error()
-            .into();
-    }
-
-    // XXX should we blacklist other attributes?
-    let attrs = f.attrs;
-    let unsafety = f.unsafety;
-    let hash = random_ident();
-    let (statics, stmts) = match extract_static_muts(f.block.stmts) {
-        Err(e) => return e.to_compile_error().into(),
-        Ok(x) => x,
-    };
-
-    let vars = statics
-        .into_iter()
-        .map(|var| {
-            let attrs = var.attrs;
-            let ident = var.ident;
-            let ty = var.ty;
-            let expr = var.expr;
-
-            quote!(
-                #[allow(non_snake_case)]
-                let #ident: &'static mut #ty = unsafe {
-                    #(#attrs)*
-                    static mut #ident: #ty = #expr;
-
-                    &mut #ident
-                };
-            )
-        })
-        .collect::<Vec<_>>();
-
-    quote!(
-        #[export_name = "main"]
-        #(#attrs)*
-        pub #unsafety fn #hash() -> ! {
-            #(#vars)*
-
-            #(#stmts)*
-        }
-    )
-    .into()
 }
 
 /// Attribute to declare an interrupt handler
@@ -164,7 +167,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
 /// use device::interrupt;
 ///
 /// #[interrupt]
-/// fn USART1() {
+/// fn USART1(cs: CriticalSection) {
 ///     // ..
 /// }
 /// ```
@@ -204,7 +207,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
 /// use device::interrupt;
 ///
 /// #[interrupt]
-/// fn TIM2() {
+/// fn TIM2(cs: CriticalSection) {
 ///     static mut COUNT: i32 = 0;
 ///
 ///     // `COUNT` is safe to access and has type `&mut i32`
@@ -236,8 +239,8 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             ident.span(),
             "only the DefaultHandler can be overridden when the `device` feature is disabled",
         )
-            .to_compile_error()
-            .into();
+        .to_compile_error()
+        .into();
     };
 
     // XXX should we blacklist other attributes?
@@ -249,7 +252,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let valid_signature = f.constness.is_none()
         && f.vis == Visibility::Inherited
         && f.abi.is_none()
-        && f.decl.inputs.is_empty()
+        && f.decl.inputs.len() == 1
         && f.decl.generics.params.is_empty()
         && f.decl.generics.where_clause.is_none()
         && f.decl.variadic.is_none()
@@ -261,8 +264,49 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
                 _ => false,
             },
         };
+    let cs_decl = get_critical_section_arg(f.decl.inputs.first().unwrap().into_value());
 
-    if !valid_signature {
+    if let Some(cs_decl) = cs_decl.filter(|_| valid_signature) {
+        let (statics, stmts) = match extract_static_muts(stmts) {
+            Err(e) => return e.to_compile_error().into(),
+            Ok(x) => x,
+        };
+
+        let vars = statics
+            .into_iter()
+            .map(|var| {
+                let attrs = var.attrs;
+                let ident = var.ident;
+                let ty = var.ty;
+                let expr = var.expr;
+
+                quote!(
+                    #[allow(non_snake_case)]
+                    let #ident: &mut #ty = unsafe {
+                        #(#attrs)*
+                        static mut #ident: #ty = #expr;
+
+                        &mut #ident
+                    };
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let hash = random_ident();
+        quote!(
+            #[export_name = #ident_s]
+            #(#attrs)*
+            #unsafety extern "msp430-interrupt" fn #hash() {
+                #check
+
+                #cs_decl
+                #(#vars)*
+
+                #(#stmts)*
+            }
+        )
+        .into()
+    } else {
         return parse::Error::new(
             fspan,
             "`#[interrupt]` handlers must have signature `[unsafe] fn() [-> !]`",
@@ -270,45 +314,6 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         .to_compile_error()
         .into();
     }
-
-    let (statics, stmts) = match extract_static_muts(stmts) {
-        Err(e) => return e.to_compile_error().into(),
-        Ok(x) => x,
-    };
-
-    let vars = statics
-        .into_iter()
-        .map(|var| {
-            let attrs = var.attrs;
-            let ident = var.ident;
-            let ty = var.ty;
-            let expr = var.expr;
-
-            quote!(
-                #[allow(non_snake_case)]
-                let #ident: &mut #ty = unsafe {
-                    #(#attrs)*
-                    static mut #ident: #ty = #expr;
-
-                    &mut #ident
-                };
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let hash = random_ident();
-    quote!(
-        #[export_name = #ident_s]
-        #(#attrs)*
-        #unsafety extern "msp430-interrupt" fn #hash() {
-            #check
-
-            #(#vars)*
-
-            #(#stmts)*
-        }
-    )
-    .into()
 }
 
 /// Attribute to mark which function will be called at the beginning of the reset handler.
@@ -378,6 +383,36 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
         pub unsafe fn #ident() #block
     )
     .into()
+}
+
+// Parses `<name>: CriticalSection` from a function argument
+fn get_critical_section_arg(arg: &FnArg) -> Option<proc_macro2::TokenStream> {
+    match arg {
+        FnArg::Captured(ArgCaptured {
+            pat:
+                Pat::Ident(PatIdent {
+                    ident: name,
+                    by_ref: None,
+                    mutability: None,
+                    subpat: None,
+                }),
+            ty: Type::Path(TypePath { qself: None, path }),
+            colon_token: _,
+        }) if path.segments.len() == 1 => {
+            path.segments
+                .first()
+                .and_then(|seg| match seg.into_value() {
+                    PathSegment {
+                        ident: tname,
+                        arguments: PathArguments::None,
+                    } if tname == "CriticalSection" => Some(quote! {
+                        let #name: msp430::interrupt::CriticalSection = unsafe { msp430::interrupt::CriticalSection::new() };
+                    }),
+                    _ => None,
+                })
+        }
+        _ => None,
+    }
 }
 
 // Creates a random identifier
