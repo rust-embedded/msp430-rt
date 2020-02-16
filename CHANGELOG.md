@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 - Modify `#[entry]` and `#[interrupt]` macros so that `main()` and interrupt
-  handlers accept a `CriticalSection` argument.
+  handlers optionally accept a `CriticalSection` argument.
 
 ## [v0.2.2]- 2020-01-07
 
