@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+- Modify `#[entry]` and `#[interrupt]` macros so that `main()` and interrupt
+  handlers optionally accept a `CriticalSection` argument.
 
 ## [v0.2.2]- 2020-01-07
 
