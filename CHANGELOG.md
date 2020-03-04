@@ -6,8 +6,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+
+## [v0.2.3]- 2020-03-04
+
+### Added
 - Modify `#[entry]` and `#[interrupt]` macros so that `main()` and interrupt
   handlers optionally accept a `CriticalSection` argument.
+
+### Changed
+- Proactively update [`r0`] to 1.0.0, the first crate of
+  [WG Issue #383](https://github.com/rust-embedded/wg/issues/383).
 
 ## [v0.2.2]- 2020-01-07
 
@@ -77,9 +85,11 @@ recent nightlies.
 
 Initial release
 
+[`r0`]: https://github.com/rust-embedded/r0
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.3...HEAD
+[v0.2.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...msp_v0.2.3
 [v0.2.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...msp_v0.2.2
 [v0.2.1]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...msp_v0.2.1
 [v0.2.0]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.1.4...msp_v0.2.0
