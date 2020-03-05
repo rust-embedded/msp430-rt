@@ -96,7 +96,8 @@ Initial release
 [`r0`]: https://github.com/rust-embedded/r0
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.3...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.4...HEAD
+[v0.2.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.3...msp_v0.2.4
 [v0.2.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...msp_v0.2.3
 [v0.2.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...msp_v0.2.2
 [v0.2.1]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.0...msp_v0.2.1
