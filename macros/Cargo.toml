@@ -7,7 +7,7 @@ keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-embedded/msp430-rt"
 name = "msp430-rt-macros"
-version = "0.2.0"
+version = "0.2.4"
 edition = "2018"
 
 [lib]

@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [v0.2.3]- 2020-03-04
+## [v0.2.4]- 2020-03-04
+
+### Fixed
+- `msp430-rt` now depends on the correct version of `msp430-rt-macros`.
+
+## [v0.2.3]- 2020-03-04 (YANKED)
+
+This release was yanked because `msp430-rt-macros` was not updated accordingly
+before release.
 
 ### Added
 - Modify `#[entry]` and `#[interrupt]` macros so that `main()` and interrupt
