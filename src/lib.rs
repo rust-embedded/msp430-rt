@@ -352,42 +352,12 @@ pub fn heap_start() -> *mut u32 {
 }
 
 extern "msp430-interrupt" {
-    fn ResetTrampoline() -> !;
+    fn Reset() -> !;
 }
 
 #[link_section = ".__RESET_VECTOR"]
 #[no_mangle]
-static __RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = ResetTrampoline;
-
-// The reset handler
-#[no_mangle]
-#[link_section = ".Reset"]
-unsafe extern "C" fn Reset() -> ! {
-    extern "C" {
-        // Boundaries of the .bss section
-        static mut _ebss: u16;
-        static mut _sbss: u16;
-
-        // Boundaries of the .data section
-        static mut _edata: u16;
-        static mut _sdata: u16;
-
-        // Initial values of the .data section (stored in ROM)
-        static _sidata: u16;
-    }
-
-    extern "Rust" {
-        fn PreInit();
-        fn main() -> !;
-    }
-
-    PreInit();
-
-    r0::zero_bss(&mut _sbss, &mut _ebss);
-    r0::init_data(&mut _sdata, &mut _edata, &_sidata);
-
-    main()
-}
+static __RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = Reset;
 
 #[no_mangle]
 unsafe extern "C" fn PreInit_() {}

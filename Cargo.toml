@@ -16,7 +16,6 @@ version = "0.2.4"
 
 [dependencies]
 msp430 = "0.2.0"
-r0 = "1.0.0"
 
 [dependencies.msp430-rt-macros]
 version = "0.2.4"
