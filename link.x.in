@@ -1,7 +1,7 @@
 INCLUDE memory.x
 
 /* Entry point */
-ENTRY(ResetTrampoline);
+ENTRY(Reset);
 EXTERN(__RESET_VECTOR);
 
 /* Create an undefined reference to the INTERRUPTS symbol. This is required to
@@ -33,8 +33,7 @@ SECTIONS
 
   .text ORIGIN(ROM) :
   {
-    /* Put the reset handler and its trampoline at the beginning of the .text section */
-    KEEP(*(.ResetTrampoline));
+    /* Put the reset handler at the beginning of the .text section */
     KEEP(*(.Reset));
 
     *(.text .text.*);
