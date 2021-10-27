@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [v0.2.5]- 2021-10-27
+
+To replace [`r0`], startup code is now written in assembly, optimized for
+size. The startup code provides the non-mangled function called `Reset` which:
+  - Initializes the stack pointer.
+  - Calls `PreInit`.
+  - Initializes static data in the `.bss` and `.data` sections.
+  - Calls `main`.
+
+Because `Reset` is no longer written in Rust, a user's `main` function will no
+longer be inlined into `Reset`. Additionally, `ResetTrampoline` was removed,
+since its sole purpose was to set the stack pointer; `Reset` does this now.
+
+### Removed
+- Remove [`r0`] dependency in light of potential [unsoundness](https://github.com/rust-embedded/cortex-m-rt/issues/300).
+  This internal change should not affect user-facing applications.
+
 ## [v0.2.4]- 2020-03-04
 
 ### Fixed
@@ -96,7 +113,8 @@ Initial release
 [`r0`]: https://github.com/rust-embedded/r0
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.4...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.5...HEAD
+[v0.2.5]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.4...msp_v0.2.5
 [v0.2.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.3...msp_v0.2.4
 [v0.2.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...msp_v0.2.3
 [v0.2.2]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.1...msp_v0.2.2
