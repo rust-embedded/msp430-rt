@@ -106,7 +106,7 @@
 //! }
 //! EOF
 //!
-//! $ xargo rustc --target msp430-none-elf -- \
+//! $ cargo rustc --target msp430-none-elf -Zbuild-std=core -- \
 //!       -C link-arg=-nostartfiles -C link-arg=-Tlink.x
 //!
 //! $ file target/msp430-none-elf/debug/app
@@ -164,12 +164,14 @@
 //!
 //! One will always find the following (unmangled) symbols in `msp430-rt` applications:
 //!
-//! - `ResetTrampoline`. This is the reset handler. The microcontroller will executed this function
-//! upon booting. This trampoline simply initializes the stack pointer and the jumps to `Reset`.
+//! - `Reset`. This function will initialize the stack pointer, call `PreInit`, initialize static
+//! variables (`.data` and `.bss`) and then call the user program entry point using the `main`
+//! symbol (See `#[entry]`).
 //!
-//! - `Reset`. This function will call the user program entry point (See `#[entry]`) using the
-//! `main` symbol so you may also find that symbol in your program; if you do, `main` will contain
-//! your application code. Some other times `main` gets inlined into `Reset` and you won't find it.
+//!   In previous versions of this crate (0.2.4 and below), the startup code was implemented in
+//! Rust, and `main` would sometimes be inlined into `Reset` (using a `ResetTrampoline` for stack
+//! pointer initialization). However, as of version 0.2.5, you should always find the `main` symbol
+//! in your program because the current startup code containing `Reset` is implemented in assembly.
 //!
 //! - `DefaultHandler`. This is the default interrupt handler. If not overridden using `#[interrupt]
 //! fn DefaultHandler(..` this will be an infinite loop.
@@ -181,12 +183,12 @@
 //! is located right before `__RESET_VECTOR` in the `.vector_table` section.
 //!
 //! - `PreInit`. This is a function to be run before RAM is initialized. It defaults to an empty
-//! function. The function called can be changed using the `#[pre_init]` attribute. The empty
-//! function is not optimized out by default, but if an empty function is marked with the
-//! `#[pre_init]` attribute then the function call will be optimized out.
+//! function. The function called can be changed using the `#[pre_init]` attribute. In previous
+//! versions of this crate, an empty function marked with the `#[pre_init]` would be optimized out.
+//! As of version 0.2.5, a `PreInit` function will always be included.
 //!
 //! If you overrode any interrupt handler you'll find it as an unmangled symbol, e.g. `NMI` or
-//! `WDT`, in the output of `objdump`,
+//! `WDT`, in the output of `objdump`.
 //!
 //! # Advanced usage
 //!
