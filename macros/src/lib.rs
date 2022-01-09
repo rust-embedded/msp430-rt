@@ -97,7 +97,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
         };
     let cs_decl = extract_critical_section_arg(&f.decl.inputs);
 
-    if let (true, Ok(cs_decl)) = (valid_signature, cs_decl) {
+    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         // XXX should we blacklist other attributes?
         let attrs = f.attrs;
         let unsafety = f.unsafety;
@@ -128,13 +128,14 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             .collect::<Vec<_>>();
 
         quote!(
-            #[export_name = "main"]
+            #[no_mangle]
             #(#attrs)*
-            pub #unsafety fn #hash() -> ! {
-                #cs_decl
-                #(#vars)*
-
-                #(#stmts)*
+            pub #unsafety fn main() -> ! {
+                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                    #(#vars)*
+                    #(#stmts)*
+                }
+                { #hash(#cs_arg) }
             }
         )
         .into()
@@ -266,7 +267,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         };
     let cs_decl = extract_critical_section_arg(&f.decl.inputs);
 
-    if let (true, Ok(cs_decl)) = (valid_signature, cs_decl) {
+    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         let (statics, stmts) = match extract_static_muts(stmts) {
             Err(e) => return e.to_compile_error().into(),
             Ok(x) => x,
@@ -294,15 +295,16 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
 
         let hash = random_ident();
         quote!(
-            #[export_name = #ident_s]
+            #[no_mangle]
             #(#attrs)*
-            #unsafety extern "msp430-interrupt" fn #hash() {
+            #unsafety extern "msp430-interrupt" fn #ident_s() {
                 #check
 
-                #cs_decl
-                #(#vars)*
-
-                #(#stmts)*
+                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                    #(#vars)*
+                    #(#stmts)*
+                }
+                { #hash(#cs_arg) }
             }
         )
         .into()
@@ -389,10 +391,16 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 // Additional arguments are considered invalid
 fn extract_critical_section_arg(
     list: &Punctuated<FnArg, Token![,]>,
-) -> Result<Option<proc_macro2::TokenStream>, ()> {
+) -> Result<
+    (
+        Option<proc_macro2::TokenStream>,
+        Option<proc_macro2::TokenStream>,
+    ),
+    (),
+> {
     let num_args = list.len();
     if num_args == 0 {
-        Ok(None)
+        Ok((None, None))
     } else if num_args == 1 {
         match list.first().unwrap().into_value() {
             FnArg::Captured(ArgCaptured {
@@ -411,9 +419,10 @@ fn extract_critical_section_arg(
                     PathSegment {
                         ident: tname,
                         arguments: PathArguments::None,
-                    } if tname == "CriticalSection" => Ok(Some(quote! {
-                        let #name: msp430::interrupt::CriticalSection = unsafe { msp430::interrupt::CriticalSection::new() };
-                    })),
+                    } if tname == "CriticalSection" => Ok((
+                        Some(quote! { #name: msp430::interrupt::CriticalSection<'a> }),
+                        Some(quote! { unsafe { msp430::interrupt::CriticalSection::new() } }),
+                    )),
                     _ => Err(()),
                 }
             }
