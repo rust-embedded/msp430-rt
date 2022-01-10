@@ -90,14 +90,11 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
         && f.decl.variadic.is_none()
         && match f.decl.output {
             ReturnType::Default => false,
-            ReturnType::Type(_, ref ty) => match **ty {
-                Type::Never(_) => true,
-                _ => false,
-            },
+            ReturnType::Type(_, ref ty) => matches!(**ty, Type::Never(_)),
         };
     let cs_decl = extract_critical_section_arg(&f.decl.inputs);
 
-    if let (true, Ok(cs_decl)) = (valid_signature, cs_decl) {
+    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         // XXX should we blacklist other attributes?
         let attrs = f.attrs;
         let unsafety = f.unsafety;
@@ -131,10 +128,11 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             #[export_name = "main"]
             #(#attrs)*
             pub #unsafety fn #hash() -> ! {
-                #cs_decl
-                #(#vars)*
-
-                #(#stmts)*
+                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                    #(#vars)*
+                    #(#stmts)*
+                }
+                { #hash(#cs_arg) }
             }
         )
         .into()
@@ -231,7 +229,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let ident = f.ident;
     let ident_s = ident.to_string();
 
-    let check = if ident.to_string() == "DefaultHandler" {
+    let check = if ident == "DefaultHandler" {
         None
     } else if cfg!(feature = "device") {
         Some(quote!(interrupt::#ident;))
@@ -266,7 +264,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         };
     let cs_decl = extract_critical_section_arg(&f.decl.inputs);
 
-    if let (true, Ok(cs_decl)) = (valid_signature, cs_decl) {
+    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         let (statics, stmts) = match extract_static_muts(stmts) {
             Err(e) => return e.to_compile_error().into(),
             Ok(x) => x,
@@ -299,20 +297,21 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             #unsafety extern "msp430-interrupt" fn #hash() {
                 #check
 
-                #cs_decl
-                #(#vars)*
-
-                #(#stmts)*
+                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                    #(#vars)*
+                    #(#stmts)*
+                }
+                { #hash(#cs_arg) }
             }
         )
         .into()
     } else {
-        return parse::Error::new(
+        parse::Error::new(
             fspan,
             "`#[interrupt]` handlers must have signature `[unsafe] fn([<name>: CriticalSection]) [-> !]`",
         )
         .to_compile_error()
-        .into();
+        .into()
     }
 }
 
@@ -389,10 +388,16 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 // Additional arguments are considered invalid
 fn extract_critical_section_arg(
     list: &Punctuated<FnArg, Token![,]>,
-) -> Result<Option<proc_macro2::TokenStream>, ()> {
+) -> Result<
+    (
+        Option<proc_macro2::TokenStream>,
+        Option<proc_macro2::TokenStream>,
+    ),
+    (),
+> {
     let num_args = list.len();
     if num_args == 0 {
-        Ok(None)
+        Ok((None, None))
     } else if num_args == 1 {
         match list.first().unwrap().into_value() {
             FnArg::Captured(ArgCaptured {
@@ -411,9 +416,10 @@ fn extract_critical_section_arg(
                     PathSegment {
                         ident: tname,
                         arguments: PathArguments::None,
-                    } if tname == "CriticalSection" => Ok(Some(quote! {
-                        let #name: msp430::interrupt::CriticalSection = unsafe { msp430::interrupt::CriticalSection::new() };
-                    })),
+                    } if tname == "CriticalSection" => Ok((
+                        Some(quote! { #name: msp430::interrupt::CriticalSection<'a> }),
+                        Some(quote! { unsafe { msp430::interrupt::CriticalSection::new() } }),
+                    )),
                     _ => Err(()),
                 }
             }
@@ -449,9 +455,9 @@ fn random_ident() -> Ident {
         &(0..16)
             .map(|i| {
                 if i == 0 || rng.gen() {
-                    ('a' as u8 + rng.gen::<u8>() % 25) as char
+                    (b'a' + rng.gen::<u8>() % 25) as char
                 } else {
-                    ('0' as u8 + rng.gen::<u8>() % 10) as char
+                    (b'0' + rng.gen::<u8>() % 10) as char
                 }
             })
             .collect::<String>(),
@@ -466,7 +472,7 @@ fn extract_static_muts(stmts: Vec<Stmt>) -> Result<(Vec<ItemStatic>, Vec<Stmt>),
     let mut seen = HashSet::new();
     let mut statics = vec![];
     let mut stmts = vec![];
-    while let Some(stmt) = istmts.next() {
+    for stmt in istmts.by_ref() {
         match stmt {
             Stmt::Item(Item::Static(var)) => {
                 if var.mutability.is_some() {
