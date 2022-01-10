@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+- In preparation for bumping the version of `bare-metal` in `msp430` to `v1.0`,
+  the `CriticalSection` parameters to the `main` and ISR functions now have
+  their lifetimes constrained to the body of their functions.
 
 ## [v0.2.5]- 2021-10-27
 
