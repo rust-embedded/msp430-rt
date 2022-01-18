@@ -2,6 +2,7 @@ extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
 extern crate rand;
+extern crate rand_xoshiro;
 extern crate syn;
 
 use proc_macro::TokenStream;
@@ -13,7 +14,8 @@ use std::{
 
 use proc_macro2::Span;
 use quote::quote;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
+use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
     parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, ArgCaptured, FnArg, Ident,
     Item, ItemFn, ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Token,
@@ -451,7 +453,7 @@ fn random_ident() -> Ident {
         *v = ((count >> (i * 8)) & 0xFF) as u8
     }
 
-    let mut rng = rand::rngs::SmallRng::from_seed(seed);
+    let mut rng = rand_xoshiro::Xoshiro128PlusPlus::from_seed(seed);
     Ident::new(
         &(0..16)
             .map(|i| {
