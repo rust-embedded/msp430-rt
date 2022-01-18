@@ -17,7 +17,7 @@ use quote::quote;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
-    parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, ArgCaptured, FnArg, Ident,
+    parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, FnArg, Ident,
     Item, ItemFn, ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Token,
     Type, TypePath, Visibility,
 };
@@ -84,22 +84,22 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
     let f = parse_macro_input!(input as ItemFn);
 
     // check the function signature
-    let valid_signature = f.constness.is_none()
+    let valid_signature = f.sig.constness.is_none()
         && f.vis == Visibility::Inherited
-        && f.abi.is_none()
-        && f.decl.generics.params.is_empty()
-        && f.decl.generics.where_clause.is_none()
-        && f.decl.variadic.is_none()
-        && match f.decl.output {
+        && f.sig.abi.is_none()
+        && f.sig.generics.params.is_empty()
+        && f.sig.generics.where_clause.is_none()
+        && f.sig.variadic.is_none()
+        && match f.sig.output {
             ReturnType::Default => false,
             ReturnType::Type(_, ref ty) => matches!(**ty, Type::Never(_)),
         };
-    let cs_decl = extract_critical_section_arg(&f.decl.inputs);
+    let cs_decl = extract_critical_section_arg(&f.sig.inputs);
 
     if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         // XXX should we blacklist other attributes?
         let attrs = f.attrs;
-        let unsafety = f.unsafety;
+        let unsafety = f.sig.unsafety;
         let hash = random_ident();
         let (statics, stmts) = match extract_static_muts(f.block.stmts) {
             Err(e) => return e.to_compile_error().into(),
@@ -228,7 +228,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     let fspan = f.span();
-    let ident = f.ident;
+    let ident = f.sig.ident;
     let ident_s = ident.to_string();
 
     let check = if ident == "DefaultHandler" {
@@ -248,15 +248,15 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let attrs = f.attrs;
     let block = f.block;
     let stmts = block.stmts;
-    let unsafety = f.unsafety;
+    let unsafety = f.sig.unsafety;
 
-    let valid_signature = f.constness.is_none()
+    let valid_signature = f.sig.constness.is_none()
         && f.vis == Visibility::Inherited
-        && f.abi.is_none()
-        && f.decl.generics.params.is_empty()
-        && f.decl.generics.where_clause.is_none()
-        && f.decl.variadic.is_none()
-        && match f.decl.output {
+        && f.sig.abi.is_none()
+        && f.sig.generics.params.is_empty()
+        && f.sig.generics.where_clause.is_none()
+        && f.sig.variadic.is_none()
+        && match f.sig.output {
             ReturnType::Default => true,
             ReturnType::Type(_, ref ty) => match **ty {
                 Type::Tuple(ref tuple) => tuple.elems.is_empty(),
@@ -264,7 +264,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
                 _ => false,
             },
         };
-    let cs_decl = extract_critical_section_arg(&f.decl.inputs);
+    let cs_decl = extract_critical_section_arg(&f.sig.inputs);
 
     if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
         let (statics, stmts) = match extract_static_muts(stmts) {
@@ -292,7 +292,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             })
             .collect::<Vec<_>>();
 
-        let output = f.decl.output;
+        let output = f.sig.output;
         let hash = random_ident();
         quote!(
             #[export_name = #ident_s]
@@ -343,15 +343,15 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
     let f = parse_macro_input!(input as ItemFn);
 
     // check the function signature
-    let valid_signature = f.constness.is_none()
+    let valid_signature = f.sig.constness.is_none()
         && f.vis == Visibility::Inherited
-        && f.unsafety.is_some()
-        && f.abi.is_none()
-        && f.decl.inputs.is_empty()
-        && f.decl.generics.params.is_empty()
-        && f.decl.generics.where_clause.is_none()
-        && f.decl.variadic.is_none()
-        && match f.decl.output {
+        && f.sig.unsafety.is_some()
+        && f.sig.abi.is_none()
+        && f.sig.inputs.is_empty()
+        && f.sig.generics.params.is_empty()
+        && f.sig.generics.where_clause.is_none()
+        && f.sig.variadic.is_none()
+        && match f.sig.output {
             ReturnType::Default => true,
             ReturnType::Type(_, ref ty) => match **ty {
                 Type::Tuple(ref tuple) => tuple.elems.is_empty(),
@@ -376,7 +376,7 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 
     // XXX should we blacklist other attributes?
     let attrs = f.attrs;
-    let ident = f.ident;
+    let ident = f.sig.ident;
     let block = f.block;
 
     quote!(
@@ -402,31 +402,36 @@ fn extract_critical_section_arg(
     if num_args == 0 {
         Ok((None, None))
     } else if num_args == 1 {
-        match list.first().unwrap().into_value() {
-            FnArg::Captured(ArgCaptured {
-                pat:
+        if let FnArg::Typed(pat_type) = list.first().unwrap() {
+            match (&*pat_type.pat, &*pat_type.ty, pat_type.colon_token, &*pat_type.attrs) {
+                (
                     Pat::Ident(PatIdent {
                         ident: name,
                         by_ref: None,
                         mutability: None,
                         subpat: None,
+                        attrs,
                     }),
-                ty: Type::Path(TypePath { qself: None, path }),
-                colon_token: _,
-            }) if path.segments.len() == 1 => {
-                let seg = path.segments.first().unwrap();
-                match seg.into_value() {
-                    PathSegment {
-                        ident: tname,
-                        arguments: PathArguments::None,
-                    } if tname == "CriticalSection" => Ok((
-                        Some(quote! { #name: msp430::interrupt::CriticalSection<'a> }),
-                        Some(quote! { unsafe { msp430::interrupt::CriticalSection::new() } }),
-                    )),
-                    _ => Err(()),
+                    Type::Path(TypePath { qself: None, path }),
+                    _,
+                    []
+                ) if path.segments.len() == 1 && attrs.len() == 0 => {
+                    let seg = path.segments.first().unwrap();
+                    match seg {
+                        PathSegment {
+                            ident: tname,
+                            arguments: PathArguments::None,
+                        } if tname == "CriticalSection" => Ok((
+                            Some(quote! { #name: msp430::interrupt::CriticalSection<'a> }),
+                            Some(quote! { unsafe { msp430::interrupt::CriticalSection::new() } }),
+                        )),
+                        _ => Err(()),
+                    }
                 }
+                _ => Err(()),
             }
-            _ => Err(()),
+        } else {
+            Err(())
         }
     } else {
         Err(())
