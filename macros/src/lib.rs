@@ -290,6 +290,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             })
             .collect::<Vec<_>>();
 
+        let output = f.decl.output;
         let hash = random_ident();
         quote!(
             #[export_name = #ident_s]
@@ -297,7 +298,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             #unsafety extern "msp430-interrupt" fn #hash() {
                 #check
 
-                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                #unsafety fn #hash<'a>(#cs_param) #output {
                     #(#vars)*
                     #(#stmts)*
                 }

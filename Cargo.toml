@@ -12,13 +12,13 @@ keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 name = "msp430-rt"
 repository = "https://github.com/rust-embedded/msp430-rt"
-version = "0.2.5"
+version = "0.3.0"
 
 [dependencies]
-msp430 = "0.2.0"
+msp430 = "0.3.0"
 
 [dependencies.msp430-rt-macros]
-version = "=0.2.4"
+version = "=0.3.0"
 path = "macros"
 
 [features]
