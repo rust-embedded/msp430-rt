@@ -17,9 +17,9 @@ use quote::quote;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
-    parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, FnArg, Ident,
-    Item, ItemFn, ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Token,
-    Type, TypePath, Visibility,
+    parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, FnArg, Ident, Item, ItemFn,
+    ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Token, Type, TypePath,
+    Visibility,
 };
 
 /// Attribute to declare the entry point of the program
@@ -403,7 +403,12 @@ fn extract_critical_section_arg(
         Ok((None, None))
     } else if num_args == 1 {
         if let FnArg::Typed(pat_type) = list.first().unwrap() {
-            match (&*pat_type.pat, &*pat_type.ty, pat_type.colon_token, &*pat_type.attrs) {
+            match (
+                &*pat_type.pat,
+                &*pat_type.ty,
+                pat_type.colon_token,
+                &*pat_type.attrs,
+            ) {
                 (
                     Pat::Ident(PatIdent {
                         ident: name,
@@ -414,7 +419,7 @@ fn extract_critical_section_arg(
                     }),
                     Type::Path(TypePath { qself: None, path }),
                     _,
-                    []
+                    [],
                 ) if path.segments.len() == 1 && attrs.len() == 0 => {
                     let seg = path.segments.first().unwrap();
                     match seg {

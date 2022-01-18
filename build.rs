@@ -26,7 +26,8 @@ fn main() {
 /* Provides weak aliases (cf. PROVIDED) for device specific interrupt handlers */
 /* This will usually be provided by a device crate generated using svd2rust (see `device.x`) */
 INCLUDE device.x"#
-        ).unwrap();
+        )
+        .unwrap();
     } else {
         let mut f = File::create(out.join("link.x")).unwrap();
         f.write_all(link_x).unwrap();
