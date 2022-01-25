@@ -6,9 +6,25 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
-- In preparation for bumping the version of `bare-metal` in `msp430` to `v1.0`,
-  the `CriticalSection` parameters to the `main` and ISR functions now have
-  their lifetimes constrained to the body of their functions.
+
+## [v0.3.0]- 2022-01-25
+
+### Changed
+- [breaking-change] In preparation for bumping the version of `bare-metal` in
+  `msp430` to `v1.0`, the `CriticalSection` parameters to the `main` and ISR
+  functions now have their lifetimes constrained to the body of their
+  functions. Due to `no_mangle`, PACs using v0.2.x will not work properly
+  with `v0.3.0` of this crate.
+- [breaking-change] Bump `msp430` to `v0.3.0`, which uses the new
+  `CriticalSection<'a>` parameters generated for the `main` and ISR functions
+  (via `interrupt::free` and `interrupt::Mutex`)
+- Remaining dependencies were bumped to the most recent versions available on
+  Cargo at the time.
+  - The RNG used to generate idents was changed from [`Pcg64Mcg`](https://docs.rs/rand/0.6.0/rand/rngs/struct.SmallRng.html)
+    (64-bit) and `Pcg32` (32-bit) to [`Xoshiro128PlusPlus`](https://docs.rs/rand/0.8.4/rand/rngs/struct.SmallRng.html)
+    (32/64-bit) to avoid the need for the `SmallRng` feature (and consistency
+    between 32/64-bit platforms).
+  - No other functional changes intended by bumping dependencies.
 
 ## [v0.2.5]- 2021-10-27
 
@@ -116,7 +132,8 @@ Initial release
 [`r0`]: https://github.com/rust-embedded/r0
 [`cortex-m-rt`]: https://github.com/japaric/cortex-m-rt
 
-[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.5...HEAD
+[Unreleased]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.3.0...HEAD
+[v0.3.0]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.5...msp_v0.3.0
 [v0.2.5]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.4...msp_v0.2.5
 [v0.2.4]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.3...msp_v0.2.4
 [v0.2.3]: https://github.com/rust-embedded/msp430-rt/compare/msp_v0.2.2...msp_v0.2.3
