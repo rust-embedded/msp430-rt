@@ -127,9 +127,9 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             .collect::<Vec<_>>();
 
         quote!(
-            #[export_name = "main"]
+            #[no_mangle]
             #(#attrs)*
-            pub #unsafety fn #hash() -> ! {
+            pub #unsafety fn main() -> ! {
                 #unsafety fn #hash<'a>(#cs_param) -> ! {
                     #(#vars)*
                     #(#stmts)*
@@ -227,7 +227,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             .into();
     }
 
-    let fspan = f.span();
+    let fspan = f.sig.span();
     let ident = f.sig.ident;
     let ident_s = ident.to_string();
 
@@ -295,9 +295,9 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         let output = f.sig.output;
         let hash = random_ident();
         quote!(
-            #[export_name = #ident_s]
+            #[no_mangle]
             #(#attrs)*
-            #unsafety extern "msp430-interrupt" fn #hash() {
+            #unsafety extern "msp430-interrupt" fn #ident_s() {
                 #check
 
                 #unsafety fn #hash<'a>(#cs_param) #output {
