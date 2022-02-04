@@ -229,7 +229,6 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let fspan = f.sig.span();
     let ident = f.sig.ident;
-    let ident_s = ident.to_string();
 
     let check = if ident == "DefaultHandler" {
         None
@@ -297,7 +296,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         quote!(
             #[no_mangle]
             #(#attrs)*
-            #unsafety extern "msp430-interrupt" fn #ident_s() {
+            #unsafety extern "msp430-interrupt" fn #ident() {
                 #check
 
                 #unsafety fn #hash<'a>(#cs_param) #output {
