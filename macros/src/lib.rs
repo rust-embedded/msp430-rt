@@ -140,7 +140,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
         .into()
     } else {
         parse::Error::new(
-            f.span(),
+            f.sig.span(),
             "`#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`",
         )
         .to_compile_error()

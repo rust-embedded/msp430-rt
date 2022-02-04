@@ -30,7 +30,7 @@ version = "1.0.85"
 msp430 = "0.3.0"
 
 [target.'cfg(not(target_os = "none"))'.dev-dependencies]
-compiletest_rs = { version = "0.7.0" }
+trybuild = "1"
 
 [features]
 device = []
