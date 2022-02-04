@@ -360,7 +360,7 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 
     if !valid_signature {
         return parse::Error::new(
-            f.span(),
+            f.sig.span(),
             "`#[pre_init]` function must have signature `unsafe fn()`",
         )
         .to_compile_error()
