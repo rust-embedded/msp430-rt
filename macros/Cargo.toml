@@ -37,3 +37,4 @@ device = []
 
 [[test]]
 name = "compiletest"
+required-features = ["device"]
