@@ -58,7 +58,7 @@ use syn::{
 ///
 /// ``` no_run
 /// # #![no_main]
-/// # use msp430_macros::entry;
+/// # use msp430_rt_macros::entry;
 /// #[entry]
 /// fn main(_cs: CriticalSection) -> ! {
 ///     static mut FOO: u32 = 0;
@@ -330,7 +330,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
 /// # Examples
 ///
 /// ```
-/// # use msp430_macros::pre_init;
+/// # use msp430_rt_macros::pre_init;
 /// #[pre_init]
 /// unsafe fn before_main() {
 ///     // do something here
@@ -420,7 +420,7 @@ fn extract_critical_section_arg(
                     Type::Path(TypePath { qself: None, path }),
                     _,
                     [],
-                ) if path.segments.len() == 1 && attrs.len() == 0 => {
+                ) if path.segments.len() == 1 && attrs.is_empty() => {
                     let seg = path.segments.first().unwrap();
                     match seg {
                         PathSegment {
