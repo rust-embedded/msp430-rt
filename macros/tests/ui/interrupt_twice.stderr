@@ -1,0 +1,35 @@
+error[E0428]: the name `TIM2` is defined multiple times
+  --> tests/ui/interrupt_twice.rs:28:1
+   |
+23 | #[interrupt]
+   | ------------ previous definition of the value `TIM2` here
+...
+28 | #[interrupt]
+   | ^^^^^^^^^^^^ `TIM2` redefined here
+   |
+   = note: `TIM2` must be defined only once in the value namespace of this module
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0570]: `"msp430-interrupt"` is not a supported ABI for the current target
+  --> tests/ui/interrupt_twice.rs:17:1
+   |
+17 | #[interrupt]
+   | ^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0570]: `"msp430-interrupt"` is not a supported ABI for the current target
+  --> tests/ui/interrupt_twice.rs:23:1
+   |
+23 | #[interrupt]
+   | ^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0570]: `"msp430-interrupt"` is not a supported ABI for the current target
+  --> tests/ui/interrupt_twice.rs:28:1
+   |
+28 | #[interrupt]
+   | ^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)

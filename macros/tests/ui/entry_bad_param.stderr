@@ -1,5 +1,5 @@
 error: `#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`
- --> tests/ui/bad_entry_param.rs:6:1
+ --> tests/ui/entry_bad_param.rs:6:1
   |
 6 | fn main(i: u32) -> ! {
   | ^^^^^^^^^^^^^^^^^^^^
