@@ -1,4 +1,4 @@
-error: This attribute accepts no arguments
+error: this attribute accepts no arguments
   --> tests/ui/interrupt_args.rs:10:1
    |
 10 | #[interrupt(arg)]
