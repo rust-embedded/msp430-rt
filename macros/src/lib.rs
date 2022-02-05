@@ -17,9 +17,13 @@ use quote::quote;
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
-    parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, FnArg, Ident, Item, ItemFn,
-    ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType, Stmt, Token, Type, TypePath,
-    Visibility,
+    parenthesized,
+    parse::{self, Parse},
+    parse_macro_input,
+    punctuated::Punctuated,
+    spanned::Spanned,
+    FnArg, Ident, Item, ItemFn, ItemStatic, Pat, PatIdent, PathArguments, PathSegment, ReturnType,
+    Stmt, Token, Type, TypePath, Visibility,
 };
 
 /// Attribute to declare the entry point of the program
@@ -75,11 +79,11 @@ use syn::{
 /// ```
 #[proc_macro_attribute]
 pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
-    if !args.is_empty() {
-        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
-            .to_compile_error()
-            .into();
-    }
+    let interrupt_enable = if args.is_empty() {
+        None
+    } else {
+        Some(parse_macro_input!(args as EntryInterruptEnable))
+    };
 
     let f = parse_macro_input!(input as ItemFn);
 
@@ -94,9 +98,13 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             ReturnType::Default => false,
             ReturnType::Type(_, ref ty) => matches!(**ty, Type::Never(_)),
         };
-    let cs_decl = extract_critical_section_arg(&f.sig.inputs);
 
-    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
+    let pair = match &interrupt_enable {
+        Some(interrupt_enable) => interrupt_enable.extract_init_arg(&f.sig.inputs),
+        None => extract_critical_section_arg(&f.sig.inputs),
+    };
+
+    if let (true, Ok(ParamArgPair { fn_param, fn_arg })) = (valid_signature, pair) {
         // XXX should we blacklist other attributes?
         let attrs = f.attrs;
         let unsafety = f.sig.unsafety;
@@ -130,21 +138,89 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             #[no_mangle]
             #(#attrs)*
             pub #unsafety fn main() -> ! {
-                #unsafety fn #hash<'a>(#cs_param) -> ! {
+                #unsafety fn #hash<'a>(#fn_param) -> ! {
                     #(#vars)*
                     #(#stmts)*
                 }
-                { #hash(#cs_arg) }
+                { #hash(#fn_arg) }
             }
         )
         .into()
     } else {
-        parse::Error::new(
-            f.sig.span(),
-            "`#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`",
-        )
-        .to_compile_error()
-        .into()
+        let err = match interrupt_enable {
+            None => parse::Error::new(
+                f.sig.span(),
+                "`#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`",
+            ),
+            Some(EntryInterruptEnable { pre_interrupt: None }) => parse::Error::new(
+                f.sig.span(),
+                "`#[entry(interrupt_enable)]` function must have signature `[unsafe] fn() -> !`",
+            ),
+            Some(EntryInterruptEnable { pre_interrupt: Some(ident) }) => parse::Error::new(
+                f.sig.span(),
+                format!("`#[entry(interrupt_enable(pre_interrupt = {fname}))]` function must have signature `[unsafe] fn(<ident> : <Type>) -> !`, where <Type> is the return value of {fname}", fname = ident)
+            ),
+        };
+        err.to_compile_error().into()
+    }
+}
+
+#[derive(Default)]
+struct ParamArgPair {
+    fn_param: Option<proc_macro2::TokenStream>,
+    fn_arg: Option<proc_macro2::TokenStream>,
+}
+
+struct EntryInterruptEnable {
+    pre_interrupt: Option<Ident>,
+}
+
+impl Parse for EntryInterruptEnable {
+    fn parse(input: parse::ParseStream) -> syn::Result<Self> {
+        let interrupt_enable = input.parse::<Ident>()?;
+        if interrupt_enable != "interrupt_enable" {
+            return Err(parse::Error::new(
+                interrupt_enable.span(),
+                "expected `interrupt_enable` or no arguments at all",
+            ));
+        }
+        let pre_interrupt = if input.peek(syn::token::Paren) {
+            let inner;
+            parenthesized!(inner in input);
+            let pre_interrupt = inner.parse::<Ident>()?;
+            if pre_interrupt != "pre_interrupt" {
+                return Err(parse::Error::new(
+                    pre_interrupt.span(),
+                    "expected `pre_interrupt`",
+                ));
+            }
+            inner.parse::<syn::token::Eq>()?;
+            Some(inner.parse::<Ident>()?)
+        } else {
+            None
+        };
+
+        Ok(EntryInterruptEnable { pre_interrupt })
+    }
+}
+
+impl EntryInterruptEnable {
+    fn extract_init_arg(&self, list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
+        let num_args = list.len();
+        if let (Some(fn_name), 1) = (&self.pre_interrupt, num_args) {
+            if let FnArg::Typed(pat_type) = list.first().unwrap() {
+                return Ok(ParamArgPair {
+                    fn_param: Some(quote! { #pat_type }),
+                    fn_arg: Some(quote! {{
+                        let cs = unsafe { msp430::interrupt::CriticalSection::new() };
+                        #fn_name(cs)
+                    }}),
+                });
+            }
+        } else if num_args == 0 {
+            return Ok(ParamArgPair::default());
+        }
+        Err(())
     }
 }
 
@@ -222,7 +298,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let f: ItemFn = syn::parse(input).expect("`#[interrupt]` must be applied to a function");
 
     if !args.is_empty() {
-        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
+        return parse::Error::new(Span::call_site(), "this attribute accepts no arguments")
             .to_compile_error()
             .into();
     }
@@ -263,9 +339,10 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
                 _ => false,
             },
         };
-    let cs_decl = extract_critical_section_arg(&f.sig.inputs);
 
-    if let (true, Ok((cs_param, cs_arg))) = (valid_signature, cs_decl) {
+    let pair = extract_critical_section_arg(&f.sig.inputs);
+
+    if let (true, Ok(ParamArgPair { fn_arg, fn_param })) = (valid_signature, pair) {
         let (statics, stmts) = match extract_static_muts(stmts) {
             Err(e) => return e.to_compile_error().into(),
             Ok(x) => x,
@@ -299,11 +376,11 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             #unsafety extern "msp430-interrupt" fn #ident() {
                 #check
 
-                #unsafety fn #hash<'a>(#cs_param) #output {
+                #unsafety fn #hash<'a>(#fn_param) #output {
                     #(#vars)*
                     #(#stmts)*
                 }
-                { #hash(#cs_arg) }
+                { #hash(#fn_arg) }
             }
         )
         .into()
@@ -368,7 +445,7 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     if !args.is_empty() {
-        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
+        return parse::Error::new(Span::call_site(), "this attribute accepts no arguments")
             .to_compile_error()
             .into();
     }
@@ -388,58 +465,52 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 
 // Parses an optional `<name>: CriticalSection` from a list of function arguments.
 // Additional arguments are considered invalid
-fn extract_critical_section_arg(
-    list: &Punctuated<FnArg, Token![,]>,
-) -> Result<
-    (
-        Option<proc_macro2::TokenStream>,
-        Option<proc_macro2::TokenStream>,
-    ),
-    (),
-> {
+fn extract_critical_section_arg(list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
     let num_args = list.len();
     if num_args == 0 {
-        Ok((None, None))
+        return Ok(ParamArgPair::default());
     } else if num_args == 1 {
         if let FnArg::Typed(pat_type) = list.first().unwrap() {
-            match (
+            if let (
+                Pat::Ident(PatIdent {
+                    ident: name,
+                    by_ref: None,
+                    mutability: None,
+                    subpat: None,
+                    attrs,
+                }),
+                Type::Path(TypePath { qself: None, path }),
+                _,
+                [],
+            ) = (
                 &*pat_type.pat,
                 &*pat_type.ty,
                 pat_type.colon_token,
                 &*pat_type.attrs,
             ) {
-                (
-                    Pat::Ident(PatIdent {
-                        ident: name,
-                        by_ref: None,
-                        mutability: None,
-                        subpat: None,
-                        attrs,
-                    }),
-                    Type::Path(TypePath { qself: None, path }),
-                    _,
-                    [],
-                ) if path.segments.len() == 1 && attrs.is_empty() => {
+                if path.segments.len() == 1 && attrs.is_empty() {
                     let seg = path.segments.first().unwrap();
-                    match seg {
+                    if matches!(
+                        seg,
                         PathSegment {
-                            ident: tname,
+                            ident,
                             arguments: PathArguments::None,
-                        } if tname == "CriticalSection" => Ok((
-                            Some(quote! { #name: msp430::interrupt::CriticalSection<'a> }),
-                            Some(quote! { unsafe { msp430::interrupt::CriticalSection::new() } }),
-                        )),
-                        _ => Err(()),
+                        } if ident == "CriticalSection"
+                    ) {
+                        return Ok(ParamArgPair {
+                            fn_param: Some(
+                                quote! { #name: msp430::interrupt::CriticalSection<'a> },
+                            ),
+                            fn_arg: Some(
+                                quote! { unsafe { msp430::interrupt::CriticalSection::new() } },
+                            ),
+                        });
                     }
                 }
-                _ => Err(()),
             }
-        } else {
-            Err(())
         }
-    } else {
-        Err(())
     }
+    Err(())
 }
 
 // Creates a random identifier
