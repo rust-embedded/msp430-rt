@@ -1,6 +1,6 @@
 on: [push, pull_request]
 
-name: Run Tests
+name: Run Macro Tests
 
 jobs:
   testing:
