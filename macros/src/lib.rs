@@ -43,7 +43,7 @@ use syn::{
 /// this reason a variable like `static mut FOO: u32` will become `let FOO: &'static mut u32;`. Note
 /// that `&'static mut` references have move semantics.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// - Simple entry point
 ///
@@ -74,6 +74,51 @@ use syn::{
 ///
 ///     loop {
 ///         /* .. */
+///     }
+/// }
+/// ```
+///
+/// # Pre-entry Interrupt Enable
+///
+/// If the argument `interrupt_enable` is passed into the macro, interrupts will be enabled
+/// globally before the entry function runs. If this is enabled then the entry function will no
+/// longer accept `CriticalSection` as a parameter, since that it will be unsound.
+///
+/// The macro can also take arguments of the form `interrupt_enable(pre_interrupt = <init>)`,
+/// where `init` is the name of a function with the signature `fn(cs: CriticalSection) -> <Type>`.
+/// The entry function must then take a parameter of `Type`. This makes `init` run before
+/// interrupts are enabled and pass its return value into the entry function, allowing
+/// pre-interrupt initialization to be done.
+///
+/// ## Examples
+///
+/// - Enable interrupts before entry
+///
+/// ``` no_run
+/// # #![no_main]
+/// # use msp430_rt_macros::entry;
+/// #[entry(interrupt_enable)]
+/// fn main() -> ! {
+///     /* interrupts now enabled */
+///     loop {}
+/// }
+/// ```
+///
+/// - Pre-interrupt initialization
+///
+/// ``` no_run
+/// # #![no_main]
+/// # use msp430_rt_macros::entry;
+/// # struct Hal;
+/// fn init(cs: msp430::interrupt::CriticalSection) -> Hal {
+///     /* initialize hardware */
+///     # Hal
+/// }
+///
+/// #[entry(interrupt_enable(pre_interrupt = init))]
+/// fn main(hal: Hal) -> ! {
+///     loop {
+///         /* do something with hal */
 ///     }
 /// }
 /// ```
@@ -212,8 +257,7 @@ impl EntryInterruptEnable {
                 return Ok(ParamArgPair {
                     fn_param: Some(quote! { #pat_type }),
                     fn_arg: Some(quote! {{
-                        let cs = unsafe { msp430::interrupt::CriticalSection::new() };
-                        #fn_name(cs)
+                        #fn_name(unsafe { msp430::interrupt::CriticalSection::new() })
                     }}),
                 });
             }
@@ -274,7 +318,7 @@ impl EntryInterruptEnable {
 /// the attribute will help by making a transformation to the source code: for this reason a
 /// variable like `static mut FOO: u32` will become `let FOO: &mut u32;`.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// - Using state within an interrupt handler
 ///
@@ -403,7 +447,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
 /// The function passed will be called before static variables are initialized. Any access of static
 /// variables will result in undefined behavior.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// # use msp430_rt_macros::pre_init;
