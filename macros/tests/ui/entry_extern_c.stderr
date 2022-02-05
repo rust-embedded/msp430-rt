@@ -1,0 +1,5 @@
+error: `#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`
+ --> tests/ui/entry_extern_c.rs:6:1
+  |
+6 | extern "C" fn main() -> ! {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

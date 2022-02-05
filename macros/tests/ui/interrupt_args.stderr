@@ -1,0 +1,7 @@
+error: This attribute accepts no arguments
+  --> tests/ui/interrupt_args.rs:10:1
+   |
+10 | #[interrupt(arg)]
+   | ^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)

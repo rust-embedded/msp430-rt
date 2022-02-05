@@ -1,0 +1,7 @@
+error: This attribute accepts no arguments
+ --> tests/ui/entry_args.rs:5:1
+  |
+5 | #[entry(arg)]
+  | ^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `entry` (in Nightly builds, run with -Z macro-backtrace for more info)

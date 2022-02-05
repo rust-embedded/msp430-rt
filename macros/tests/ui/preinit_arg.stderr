@@ -1,0 +1,7 @@
+error: This attribute accepts no arguments
+  --> tests/ui/preinit_arg.rs:10:1
+   |
+10 | #[pre_init(arg)]
+   | ^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `pre_init` (in Nightly builds, run with -Z macro-backtrace for more info)

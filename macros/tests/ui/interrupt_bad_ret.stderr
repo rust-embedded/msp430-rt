@@ -1,0 +1,5 @@
+error: `#[interrupt]` handlers must have signature `[unsafe] fn([<name>: CriticalSection]) [-> !]`
+  --> tests/ui/interrupt_bad_ret.rs:11:1
+   |
+11 | fn TIM2() -> bool {
+   | ^^^^^^^^^^^^^^^^^

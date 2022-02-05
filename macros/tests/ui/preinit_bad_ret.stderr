@@ -1,0 +1,5 @@
+error: `#[pre_init]` function must have signature `unsafe fn()`
+  --> tests/ui/preinit_bad_ret.rs:11:1
+   |
+11 | unsafe fn foo() -> u32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^

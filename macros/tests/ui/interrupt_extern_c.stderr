@@ -1,0 +1,5 @@
+error: `#[interrupt]` handlers must have signature `[unsafe] fn([<name>: CriticalSection]) [-> !]`
+  --> tests/ui/interrupt_extern_c.rs:11:1
+   |
+11 | extern "C" fn TIM2() -> ! {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^

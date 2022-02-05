@@ -58,7 +58,7 @@ use syn::{
 ///
 /// ``` no_run
 /// # #![no_main]
-/// # use msp430_macros::entry;
+/// # use msp430_rt_macros::entry;
 /// #[entry]
 /// fn main(_cs: CriticalSection) -> ! {
 ///     static mut FOO: u32 = 0;
@@ -127,9 +127,9 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             .collect::<Vec<_>>();
 
         quote!(
-            #[export_name = "main"]
+            #[no_mangle]
             #(#attrs)*
-            pub #unsafety fn #hash() -> ! {
+            pub #unsafety fn main() -> ! {
                 #unsafety fn #hash<'a>(#cs_param) -> ! {
                     #(#vars)*
                     #(#stmts)*
@@ -140,7 +140,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
         .into()
     } else {
         parse::Error::new(
-            f.span(),
+            f.sig.span(),
             "`#[entry]` function must have signature `[unsafe] fn([<ident> : CriticalSection]) -> !`",
         )
         .to_compile_error()
@@ -227,9 +227,8 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             .into();
     }
 
-    let fspan = f.span();
+    let fspan = f.sig.span();
     let ident = f.sig.ident;
-    let ident_s = ident.to_string();
 
     let check = if ident == "DefaultHandler" {
         None
@@ -295,9 +294,9 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         let output = f.sig.output;
         let hash = random_ident();
         quote!(
-            #[export_name = #ident_s]
+            #[no_mangle]
             #(#attrs)*
-            #unsafety extern "msp430-interrupt" fn #hash() {
+            #unsafety extern "msp430-interrupt" fn #ident() {
                 #check
 
                 #unsafety fn #hash<'a>(#cs_param) #output {
@@ -330,7 +329,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
 /// # Examples
 ///
 /// ```
-/// # use msp430_macros::pre_init;
+/// # use msp430_rt_macros::pre_init;
 /// #[pre_init]
 /// unsafe fn before_main() {
 ///     // do something here
@@ -361,7 +360,7 @@ pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
 
     if !valid_signature {
         return parse::Error::new(
-            f.span(),
+            f.sig.span(),
             "`#[pre_init]` function must have signature `unsafe fn()`",
         )
         .to_compile_error()
@@ -420,7 +419,7 @@ fn extract_critical_section_arg(
                     Type::Path(TypePath { qself: None, path }),
                     _,
                     [],
-                ) if path.segments.len() == 1 && attrs.len() == 0 => {
+                ) if path.segments.len() == 1 && attrs.is_empty() => {
                     let seg = path.segments.first().unwrap();
                     match seg {
                         PathSegment {

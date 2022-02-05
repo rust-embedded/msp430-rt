@@ -26,5 +26,15 @@ version = "0.8.4"
 features = ["extra-traits", "full"]
 version = "1.0.85"
 
+[dev-dependencies]
+msp430 = "0.3.0"
+
+[target.'cfg(not(target_os = "none"))'.dev-dependencies]
+trybuild = "1"
+
 [features]
 device = []
+
+[[test]]
+name = "compiletest"
+required-features = ["device"]
