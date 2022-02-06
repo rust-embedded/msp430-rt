@@ -13,7 +13,7 @@ use std::{
 };
 
 use proc_macro2::Span;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
@@ -84,10 +84,10 @@ use syn::{
 /// globally before the entry function runs. If this is enabled then the entry function will no
 /// longer accept `CriticalSection` as a parameter, since that it will be unsound.
 ///
-/// The macro can also take arguments of the form `interrupt_enable(pre_interrupt = <init>)`,
-/// where `init` is the name of a function with the signature `fn(cs: CriticalSection) -> <Type>`.
-/// The entry function must then take a parameter of `Type`. This makes `init` run before
-/// interrupts are enabled and pass its return value into the entry function, allowing
+/// The macro can also take arguments of the form `interrupt_enable(pre_interrupt = <init>)`, where
+/// `init` is the name of a function with the signature `fn(cs: CriticalSection) -> <Type>`.  The
+/// entry function can then optionally take a parameter of `Type`. This makes `init` run before
+/// interrupts are enabled and possibly pass its return value into the entry function, allowing
 /// pre-interrupt initialization to be done.
 ///
 /// ## Examples
@@ -120,6 +120,21 @@ use syn::{
 ///     loop {
 ///         /* do something with hal */
 ///     }
+/// }
+/// ```
+///
+/// - Pre-interrupt initialization with no return
+///
+/// ``` no_run
+/// # #![no_main]
+/// # use msp430_rt_macros::entry;
+/// fn arg(cs: msp430::interrupt::CriticalSection) {
+///     /* initialize */
+/// }
+///
+/// #[entry(interrupt_enable(pre_interrupt = arg))]
+/// fn main() -> ! {
+///     loop {}
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -179,6 +194,15 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             })
             .collect::<Vec<_>>();
 
+        // Only generate the argument if fn_param exists, to handle the case where the argument
+        // expression does exist but the entry function doesn't accept any args
+        let arg_ident = fn_param
+            .as_ref()
+            .map(|_| Ident::new("arg", Span::mixed_site()));
+        let arg_def = fn_arg
+            .as_ref()
+            .map(|arg| quote_spanned!(Span::mixed_site()=> let arg = #arg; ));
+
         quote!(
             #[no_mangle]
             #(#attrs)*
@@ -187,7 +211,8 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
                     #(#vars)*
                     #(#stmts)*
                 }
-                { #hash(#fn_arg) }
+                #arg_def
+                { #hash(#arg_ident) }
             }
         )
         .into()
@@ -203,7 +228,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             ),
             Some(EntryInterruptEnable { pre_interrupt: Some(ident) }) => parse::Error::new(
                 f.sig.span(),
-                format!("`#[entry(interrupt_enable(pre_interrupt = {fname}))]` function must have signature `[unsafe] fn(<ident> : <Type>) -> !`, where <Type> is the return value of {fname}", fname = ident)
+                format!("`#[entry(interrupt_enable(pre_interrupt = {fname}))]` function must have signature `[unsafe] fn([<ident> : <Type>]) -> !`, where <Type> is the return value of {fname}", fname = ident)
             ),
         };
         err.to_compile_error().into()
@@ -251,18 +276,35 @@ impl Parse for EntryInterruptEnable {
 
 impl EntryInterruptEnable {
     fn extract_init_arg(&self, list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
-        let num_args = list.len();
-        if let (Some(fn_name), 1) = (&self.pre_interrupt, num_args) {
-            if let FnArg::Typed(pat_type) = list.first().unwrap() {
+        if let Some(fn_name) = &self.pre_interrupt {
+            let fn_arg = Some(quote_spanned!(Span::mixed_site()=> {
+                let arg = #fn_name(unsafe { msp430::interrupt::CriticalSection::new() });
+                unsafe { msp430::interrupt::enable() };
+                arg
+            }));
+            if let Some(first) = list.first() {
+                if let FnArg::Typed(pat_type) = first {
+                    // Case where pre-init exists and entry takes a param
+                    return Ok(ParamArgPair {
+                        fn_param: Some(quote! { #pat_type }),
+                        fn_arg,
+                    });
+                }
+            } else {
+                // Case where pre-init exists but entry takes no params
                 return Ok(ParamArgPair {
-                    fn_param: Some(quote! { #pat_type }),
-                    fn_arg: Some(quote! {{
-                        #fn_name(unsafe { msp430::interrupt::CriticalSection::new() })
-                    }}),
+                    fn_param: None,
+                    fn_arg,
                 });
             }
-        } else if num_args == 0 {
-            return Ok(ParamArgPair::default());
+        } else if list.is_empty() {
+            // Case where pre-init doesn't exist and entry takes no params
+            return Ok(ParamArgPair {
+                fn_param: None,
+                fn_arg: Some(quote!({
+                    unsafe { msp430::interrupt::enable() };
+                })),
+            });
         }
         Err(())
     }
