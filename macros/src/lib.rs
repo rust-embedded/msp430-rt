@@ -85,7 +85,7 @@ use syn::{
 /// longer accept `CriticalSection` as a parameter, since that it will be unsound.
 ///
 /// The macro can also take arguments of the form `interrupt_enable(pre_interrupt = <init>)`, where
-/// `init` is the name of a function with the signature `fn(cs: CriticalSection) -> <Type>`.  The
+/// `init` is the name of a function with the signature `fn(cs: &CriticalSection) -> <Type>`.  The
 /// entry function can then optionally take a parameter of `Type`. This makes `init` run before
 /// interrupts are enabled and possibly pass its return value into the entry function, allowing
 /// pre-interrupt initialization to be done.
@@ -109,8 +109,9 @@ use syn::{
 /// ``` no_run
 /// # #![no_main]
 /// # use msp430_rt_macros::entry;
+/// # use msp430::interrupt::CriticalSection;
 /// # struct Hal;
-/// fn init(cs: msp430::interrupt::CriticalSection) -> Hal {
+/// fn init(cs: &CriticalSection) -> Hal {
 ///     /* initialize hardware */
 ///     # Hal
 /// }
@@ -128,7 +129,8 @@ use syn::{
 /// ``` no_run
 /// # #![no_main]
 /// # use msp430_rt_macros::entry;
-/// fn arg(cs: msp430::interrupt::CriticalSection) {
+/// # use msp430::interrupt::CriticalSection;
+/// fn arg(cs: &CriticalSection) {
 ///     /* initialize */
 /// }
 ///
@@ -278,7 +280,9 @@ impl EntryInterruptEnable {
     fn extract_init_arg(&self, list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
         if let Some(fn_name) = &self.pre_interrupt {
             let fn_arg = Some(quote_spanned!(Span::mixed_site()=> {
-                let arg = #fn_name(unsafe { msp430::interrupt::CriticalSection::new() });
+                let cs = unsafe { msp430::interrupt::CriticalSection::new() };
+                struct M<'a>(&'a CriticalSection<'a>);
+                let arg = #fn_name(M(&cs).0);
                 unsafe { msp430::interrupt::enable() };
                 arg
             }));
