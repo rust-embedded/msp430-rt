@@ -1,0 +1,11 @@
+error[E0597]: `cs` does not live long enough
+  --> tests/ui/entry_preinterrupt_return_cs_static.rs:10:1
+   |
+10 | #[entry(interrupt_enable(pre_interrupt = init))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+   | |                                              |
+   | |                                              `cs` dropped here while still borrowed
+   | borrowed value does not live long enough
+   | argument requires that `cs` is borrowed for `'static`
+   |
+   = note: this error originates in the attribute macro `entry` (in Nightly builds, run with -Z macro-backtrace for more info)

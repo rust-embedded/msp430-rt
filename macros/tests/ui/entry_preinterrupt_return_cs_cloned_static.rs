@@ -3,7 +3,7 @@
 use msp430::interrupt::CriticalSection;
 use msp430_rt_macros::entry;
 
-fn init(cs: &CriticalSection<'static>) -> CriticalSection<'static> {
+fn init(cs: CriticalSection<'static>) -> CriticalSection<'static> {
     cs.clone()
 }
 
