@@ -281,12 +281,14 @@ impl Parse for EntryInterruptEnable {
 impl EntryInterruptEnable {
     fn extract_init_arg(&self, list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
         if let Some(fn_name) = &self.pre_interrupt {
+            let hash = random_ident();
             let fn_arg = Some(quote_spanned!(Span::mixed_site()=> {
                 let cs = unsafe { msp430::interrupt::CriticalSection::new() };
 
                 // Lock the lifetime of `cs` to this scope
-                struct M<'a>(&'a CriticalSection<'a>);
-                let arg = #fn_name(*M(&cs).0);
+                #[allow(non_camel_case_types)]
+                struct #hash<'a>(&'a CriticalSection<'a>);
+                let arg = #fn_name(*#hash(&cs).0);
 
                 unsafe { msp430::interrupt::enable() };
                 arg
