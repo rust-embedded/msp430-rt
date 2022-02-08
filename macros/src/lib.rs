@@ -285,7 +285,10 @@ impl EntryInterruptEnable {
             let fn_arg = Some(quote_spanned!(Span::mixed_site()=> {
                 let cs = unsafe { msp430::interrupt::CriticalSection::new() };
 
-                // Lock the lifetime of `cs` to this scope
+                // This struct forces the lifetime of the CriticalSection to match the lifetime of
+                // the reference. Since the reference lifetime is restricted to this scope, the
+                // compiler has to constrain the lifetime of the CriticalSection as well,
+                // preventing the CriticalSection from being leaked as a return value.
                 #[allow(non_camel_case_types)]
                 struct #hash<'a>(&'a CriticalSection<'a>);
                 let arg = #fn_name(*#hash(&cs).0);
