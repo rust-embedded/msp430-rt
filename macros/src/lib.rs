@@ -90,6 +90,9 @@ use syn::{
 /// interrupts are enabled and possibly pass its return value into the entry function, allowing
 /// pre-interrupt initialization to be done.
 ///
+/// Note that a function marked with the entry attribute is allowed to take no input parameters
+/// even if `init` returns a value, due to implementation details.
+///
 /// ## Examples
 ///
 /// - Enable interrupts before entry
@@ -141,6 +144,12 @@ use syn::{
 ///     loop {}
 /// }
 /// ```
+///
+/// ## Note
+///
+/// The `CriticalSection`s passed into the entry and the pre-interrupt functions have their
+/// lifetimes restrained to their respective functions. Attempting to pass the `CriticalSection`
+/// outside its scope fails with a `borrowed value does not live long enough` error.
 #[proc_macro_attribute]
 pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
     let interrupt_enable = if args.is_empty() {
@@ -394,6 +403,12 @@ impl EntryInterruptEnable {
 ///     println!("{}", COUNT);
 /// }
 /// ```
+///
+/// ## Note
+///
+/// The `CriticalSection` passed into the interrupt function has its lifetime restrained to the
+/// function scope. Attempting to pass the `CriticalSection` outside its scope fails with a
+/// `borrowed value does not live long enough` error.
 #[proc_macro_attribute]
 pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let f: ItemFn = syn::parse(input).expect("`#[interrupt]` must be applied to a function");
