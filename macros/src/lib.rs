@@ -1,21 +1,13 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
-extern crate rand;
-extern crate rand_xoshiro;
 extern crate syn;
 
 use proc_macro::TokenStream;
-use std::{
-    collections::HashSet,
-    sync::atomic::{AtomicUsize, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::HashSet;
 
 use proc_macro2::Span;
 use quote::{quote, quote_spanned};
-use rand::Rng;
-use rand_xoshiro::rand_core::SeedableRng;
 use syn::{
     parenthesized,
     parse::{self, Parse},
@@ -172,6 +164,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             ReturnType::Type(_, ref ty) => matches!(**ty, Type::Never(_)),
         };
 
+    let fname = &f.sig.ident;
     let pair = match &interrupt_enable {
         Some(interrupt_enable) => interrupt_enable.extract_init_arg(&f.sig.inputs),
         None => extract_critical_section_arg(&f.sig.inputs),
@@ -181,7 +174,6 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
         // XXX should we blacklist other attributes?
         let attrs = f.attrs;
         let unsafety = f.sig.unsafety;
-        let hash = random_ident();
         let (statics, stmts) = match extract_static_muts(f.block.stmts) {
             Err(e) => return e.to_compile_error().into(),
             Ok(x) => x,
@@ -220,12 +212,12 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             #[no_mangle]
             #(#attrs)*
             pub #unsafety fn main() -> ! {
-                #unsafety fn #hash<'a>(#fn_param) -> ! {
+                #unsafety fn #fname<'a>(#fn_param) -> ! {
                     #(#vars)*
                     #(#stmts)*
                 }
                 #arg_def
-                { #hash(#arg_ident) }
+                { #fname(#arg_ident) }
             }
         )
         .into()
@@ -290,7 +282,6 @@ impl Parse for EntryInterruptEnable {
 impl EntryInterruptEnable {
     fn extract_init_arg(&self, list: &Punctuated<FnArg, Token![,]>) -> Result<ParamArgPair, ()> {
         if let Some(fn_name) = &self.pre_interrupt {
-            let hash = random_ident();
             let fn_arg = Some(quote_spanned!(Span::mixed_site()=> {
                 let cs = unsafe { msp430::interrupt::CriticalSection::new() };
 
@@ -298,9 +289,8 @@ impl EntryInterruptEnable {
                 // the reference. Since the reference lifetime is restricted to this scope, the
                 // compiler has to constrain the lifetime of the CriticalSection as well,
                 // preventing the CriticalSection from being leaked as a return value.
-                #[allow(non_camel_case_types)]
-                struct #hash<'a>(&'a CriticalSection<'a>);
-                let arg = #fn_name(*#hash(&cs).0);
+                mod inner { pub struct Cs<'a>(pub &'a msp430::interrupt::CriticalSection<'a>); }
+                let arg = #fn_name(*inner::Cs(&cs).0);
 
                 unsafe { msp430::interrupt::enable() };
                 arg
@@ -485,18 +475,17 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             .collect::<Vec<_>>();
 
         let output = f.sig.output;
-        let hash = random_ident();
         quote!(
             #[no_mangle]
             #(#attrs)*
             #unsafety extern "msp430-interrupt" fn #ident() {
                 #check
 
-                #unsafety fn #hash<'a>(#fn_param) #output {
+                #unsafety fn #ident<'a>(#fn_param) #output {
                     #(#vars)*
                     #(#stmts)*
                 }
-                { #hash(#fn_arg) }
+                { #ident(#fn_arg) }
             }
         )
         .into()
@@ -629,41 +618,6 @@ fn extract_critical_section_arg(list: &Punctuated<FnArg, Token![,]>) -> Result<P
     Err(())
 }
 
-// Creates a random identifier
-fn random_ident() -> Ident {
-    static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
-
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let count: u64 = CALL_COUNT.fetch_add(1, Ordering::SeqCst) as u64;
-    let mut seed: [u8; 16] = [0; 16];
-
-    for (i, v) in seed.iter_mut().take(8).enumerate() {
-        *v = ((secs >> (i * 8)) & 0xFF) as u8
-    }
-
-    for (i, v) in seed.iter_mut().skip(8).enumerate() {
-        *v = ((count >> (i * 8)) & 0xFF) as u8
-    }
-
-    let mut rng = rand_xoshiro::Xoshiro128PlusPlus::from_seed(seed);
-    Ident::new(
-        &(0..16)
-            .map(|i| {
-                if i == 0 || rng.gen() {
-                    (b'a' + rng.gen::<u8>() % 25) as char
-                } else {
-                    (b'0' + rng.gen::<u8>() % 10) as char
-                }
-            })
-            .collect::<String>(),
-        Span::call_site(),
-    )
-}
-
 /// Extracts `static mut` vars from the beginning of the given statements
 fn extract_static_muts(stmts: Vec<Stmt>) -> Result<(Vec<ItemStatic>, Vec<Stmt>), parse::Error> {
     let mut istmts = stmts.into_iter();
@@ -698,4 +652,25 @@ fn extract_static_muts(stmts: Vec<Stmt>) -> Result<(Vec<ItemStatic>, Vec<Stmt>),
     stmts.extend(istmts);
 
     Ok((statics, stmts))
+}
+
+/// ``` no_run
+/// #![no_main]
+/// use msp430_rt_macros::{entry, interrupt};
+/// use msp430::interrupt::CriticalSection;
+///
+/// fn arg(cs: CriticalSection) -> u32 {
+///     arg(cs)
+/// }
+///
+/// #[entry(interrupt_enable(pre_interrupt = arg))]
+/// fn main(i: u32) -> ! {
+///     main(i)
+/// }
+/// ```
+#[cfg(doctest)]
+#[doc(hidden)]
+#[proc_macro]
+pub fn recursive_doc_test(t: TokenStream) -> TokenStream {
+    t
 }

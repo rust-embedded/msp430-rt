@@ -16,11 +16,6 @@ proc-macro = true
 [dependencies]
 quote = "1.0.14"
 proc-macro2 = "1.0.36"
-rand_xoshiro = "0.6.0"
-
-[dependencies.rand]
-default-features = false
-version = "0.8.4"
 
 [dependencies.syn]
 features = ["extra-traits", "full"]
