@@ -208,8 +208,8 @@
 //!
 //! // expands into
 //!
-//! #[export_name = "main"]
-//! extern "C" fn randomly_generated_string() -> ! {
+//! #[no_mangle]
+//! extern "C" fn main() -> ! {
 //!     /* user code */
 //! }
 //! ```

@@ -1,0 +1,5 @@
+error: expected `interrupt_enable` or no arguments at all
+ --> tests/ui/entry_bad_arg.rs:5:9
+  |
+5 | #[entry(arg)]
+  |         ^^^
