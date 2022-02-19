@@ -91,7 +91,8 @@ use syn::{
 /// pre-interrupt initialization to be done.
 ///
 /// Note that a function marked with the entry attribute is allowed to take no input parameters
-/// even if `init` returns a value, due to implementation details.
+/// even if `init` returns a value, due to implementation details. To reduce code size, it is
+/// strongly recommended to put `#[inline(always)]` on `init` if it's used nowhere else.
 ///
 /// ## Examples
 ///
@@ -115,6 +116,7 @@ use syn::{
 /// use msp430::interrupt::CriticalSection;
 ///
 /// # struct Hal;
+/// #[inline(always)]
 /// fn init(cs: CriticalSection) -> Hal {
 ///     /* initialize hardware */
 ///     # Hal
@@ -135,6 +137,7 @@ use syn::{
 /// # use msp430_rt_macros::entry;
 /// use msp430::interrupt::CriticalSection;
 ///
+/// #[inline(always)]
 /// fn arg(cs: CriticalSection) {
 ///     /* initialize */
 /// }
@@ -494,6 +497,7 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
             #unsafety extern "msp430-interrupt" fn #hash() {
                 #check
 
+                #[inline(always)]
                 #unsafety fn #hash<'a>(#fn_param) #output {
                     #(#vars)*
                     #(#stmts)*

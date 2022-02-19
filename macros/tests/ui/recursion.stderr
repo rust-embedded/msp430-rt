@@ -1,0 +1,29 @@
+error[E0425]: cannot find function `main` in this scope
+ --> tests/ui/recursion.rs:7:5
+  |
+7 |     main(cs)
+  |     ^^^^ not found in this scope
+
+error[E0425]: cannot find function, tuple struct or tuple variant `DefaultHandler` in this scope
+  --> tests/ui/recursion.rs:12:5
+   |
+12 |     DefaultHandler(cs)
+   |     ^^^^^^^^^^^^^^ not found in this scope
+
+error[E0658]: msp430-interrupt ABI is experimental and subject to change
+  --> tests/ui/recursion.rs:10:1
+   |
+10 | #[interrupt]
+   | ^^^^^^^^^^^^
+   |
+   = note: see issue #38487 <https://github.com/rust-lang/rust/issues/38487> for more information
+   = help: add `#![feature(abi_msp430_interrupt)]` to the crate attributes to enable
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0570]: `"msp430-interrupt"` is not a supported ABI for the current target
+  --> tests/ui/recursion.rs:10:1
+   |
+10 | #[interrupt]
+   | ^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
