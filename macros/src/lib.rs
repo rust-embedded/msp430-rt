@@ -220,6 +220,7 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             #[export_name = "main"]
             #(#attrs)*
             pub #unsafety fn #hash() -> ! {
+                #[inline(always)]
                 #unsafety fn #hash<'a>(#fn_param) -> ! {
                     #(#vars)*
                     #(#stmts)*
