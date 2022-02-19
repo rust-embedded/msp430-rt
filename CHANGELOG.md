@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## Added
+- The `entry` attribute macro for main can now take an `interrupt_enable`
+  argument. The `interrupt_enable` argument will enable interrupts before
+  calling the function with the `entry` attribute, possibly calling an an
+  optional setup function before enabling interrupts.
+  - Not using the `interrupt_enable` argument is backwards-compatible with [v0.3.0].
+- Use [`trybuild`](https://github.com/dtolnay/trybuild) to test error messages
+  from the `pre-init`, `entry`, and `interrupt` macros.
+  - Use [GHA](https://github.com/rust-embedded/msp430-rt/actions) for these UI
+    tests.
+
+## Fixed
+- [docs.rs](https://docs.rs) [metadata](https://docs.rs/about/metadata) added
+  to `Cargo.toml` to fix documentation building [failure](https://github.com/rust-embedded/msp430-rt/issues/16).
+- Change instances of `msp430_macros` in docs to correct `msp430_rt_macros`
+  import.
+
 ## [v0.3.0]- 2022-01-25
 
 ### Changed
