@@ -26,6 +26,8 @@ device = ["msp430-rt-macros/device"]
 
 [package.metadata.docs.rs]
 features = ["device"]
+targets = ["msp430-none-elf"]
+cargo-args = ["-Z", "build-std=core"]
 
 [workspace]
 members = ["macros"]
