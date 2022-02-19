@@ -1,0 +1,13 @@
+error: `#[interrupt]` handlers must have signature `[unsafe] fn([<name>: CriticalSection]) [-> !]`
+  --> tests/ui/interrupt_bad_cs_import.rs:18:1
+   |
+18 | fn TIM2(_cs: CritSec) {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `msp430::interrupt::CriticalSection as CritSec`
+ --> tests/ui/interrupt_bad_cs_import.rs:3:5
+  |
+3 | use msp430::interrupt::CriticalSection as CritSec;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
