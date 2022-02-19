@@ -1,8 +1,8 @@
-error[E0423]: expected function, found built-in attribute `main`
+error[E0425]: cannot find function `main` in this scope
  --> tests/ui/recursion2.rs:7:5
   |
 7 |     main()
-  |     ^^^^ not a function
+  |     ^^^^ not found in this scope
 
 error[E0425]: cannot find function, tuple struct or tuple variant `DefaultHandler` in this scope
   --> tests/ui/recursion2.rs:12:5
