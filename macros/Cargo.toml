@@ -7,7 +7,7 @@ keywords = ["msp430", "runtime", "startup"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-embedded/msp430-rt"
 name = "msp430-rt-macros"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2018"
 
 [lib]
@@ -27,7 +27,7 @@ features = ["extra-traits", "full"]
 version = "1.0.85"
 
 [dev-dependencies]
-msp430 = "0.3.0"
+msp430 = "0.4.0"
 
 [target.'cfg(not(target_os = "none"))'.dev-dependencies]
 trybuild = "1"
