@@ -2,13 +2,14 @@ error[E0061]: this function takes 0 arguments but 1 argument was supplied
  --> tests/ui/entry_preinterrupt_no_arg.rs:7:42
   |
 7 | #[entry(interrupt_enable(pre_interrupt = init))]
-  | -----------------------------------------^^^^---
-  | |                                        |
-  | |                                        expected 0 arguments
-  | supplied 1 argument
+  | -----------------------------------------^^^^--- argument of type `CriticalSection<'_>` unexpected
   |
 note: function defined here
  --> tests/ui/entry_preinterrupt_no_arg.rs:5:4
   |
 5 | fn init() {}
   |    ^^^^
+help: remove the extra argument
+  |
+7 | init()
+  |

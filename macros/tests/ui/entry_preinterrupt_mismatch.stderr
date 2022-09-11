@@ -2,6 +2,14 @@ error[E0308]: mismatched types
   --> tests/ui/entry_preinterrupt_mismatch.rs:10:1
    |
 10 | #[entry(interrupt_enable(pre_interrupt = init))]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `bool`, found `u32`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | expected `bool`, found `u32`
+   | arguments to this function are incorrect
    |
+note: function defined here
+  --> tests/ui/entry_preinterrupt_mismatch.rs:10:1
+   |
+10 | #[entry(interrupt_enable(pre_interrupt = init))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `entry` (in Nightly builds, run with -Z macro-backtrace for more info)
