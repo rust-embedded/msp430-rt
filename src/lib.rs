@@ -63,6 +63,12 @@
 //! }
 //! ```
 //!
+//! By default, the linker will check that the address after the vector table is 0x10000 to
+//! ensure that the vector table is placed correctly. For special cases like bootloader
+//! setups, you might want to place the vector table somewhere else. For theses cases,
+//! you can re-configure the expected end address by setting `__VECTORS_END_ADDR` in your
+//! `memory.x` file.
+//!
 //! # An example
 //!
 //! This section presents a minimal application built on top of `msp430-rt`.

@@ -9,6 +9,9 @@ EXTERN(__RESET_VECTOR);
    object file that's passed to the linker *before* this crate */
 EXTERN(__INTERRUPTS);
 
+/* Provide a default for __VECTORS_END_ADDR. Can be overriden in the user memory.x file */
+PROVIDE(__VECTORS_END_ADDR = 0x10000);
+
 /* # Pre-initialization function */
 /* If the user overrides this using the `pre_init!` macro or by creating a `__pre_init` function,
 then the function this points to will be called before the RAM is initialized. */
@@ -78,10 +81,10 @@ SECTIONS
 }
 
 /* Do not exceed this mark in the error messages below                                    | */
-ASSERT(ORIGIN(VECTORS) + LENGTH(VECTORS) == 0x10000, "
+ASSERT(ORIGIN(VECTORS) + LENGTH(VECTORS) == __VECTORS_END_ADDR, "
 ERROR(msp430-rt): The VECTORS memory region must end at address 0x10000. Check memory.x");
 
-ASSERT(ADDR(.vector_table) + SIZEOF(.vector_table) == 0x10000, "
+ASSERT(ADDR(.vector_table) + SIZEOF(.vector_table) == __VECTORS_END_ADDR, "
 ERROR(msp430-rt): .vector_table is shorter than expected.
 Possible solutions, from most likely to less likely:
 - Link to a svd2rust generated pac crate, if you are not
@@ -89,6 +92,7 @@ Possible solutions, from most likely to less likely:
   pac crate
 - Disable the 'device' feature of msp430-rt to build a generic application; a dependency
 may be enabling it
+- Override __VECTORS_END_ADDR if your vector table is not placed at the regular vector location
 ");
 
 ASSERT(_sgot == _egot, "
