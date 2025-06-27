@@ -378,6 +378,15 @@ impl EntryInterruptEnable {
 /// `#[interrupt] fn DefaultHandler(..` can be used to override the default interrupt handler. When
 /// not overridden `DefaultHandler` defaults to an infinite loop.
 ///
+/// `#[interrupt(wake_cpu)]` additionally returns the CPU to active mode after the interrupt
+/// returns. This cannot be done by naively writing to the status register, as the status register
+/// contents are pushed to the stack before an interrupt begins and this value is loaded back into
+/// the status register after an interrupt completes, effectively making any changes to the status
+/// register within an interrupt temporary.
+/// Using the `wake_cpu` variant incurs a delay of two instructions (6 cycles) before the interrupt
+/// handler begins.
+/// The following status register bits are cleared: SCG1, SCG0, OSC_OFF and CPU_OFF.
+///
 /// # Properties
 ///
 /// Interrupts handlers can only be called by the hardware. Other parts of the program can't refer
@@ -417,11 +426,21 @@ impl EntryInterruptEnable {
 pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
     let f: ItemFn = syn::parse(input).expect("`#[interrupt]` must be applied to a function");
 
-    if !args.is_empty() {
-        return parse::Error::new(Span::call_site(), "this attribute accepts no arguments")
+    let maybe_arg = parse_macro_input::parse::<Option<Ident>>(args.clone());
+
+    let wake_cpu = match maybe_arg {
+        Ok(None) => false,
+        Ok(Some(ident)) if ident == "wake_cpu" => true,
+        Ok(Some(_)) => {
+            return parse::Error::new(
+                Span::call_site(),
+                "this attribute accepts only 'wake_cpu' as an argument",
+            )
             .to_compile_error()
-            .into();
-    }
+            .into()
+        }
+        Err(e) => return e.into_compile_error().into(),
+    };
 
     let fspan = f.sig.span();
     let ident = f.sig.ident;
@@ -491,21 +510,46 @@ pub fn interrupt(args: TokenStream, input: TokenStream) -> TokenStream {
         let output = f.sig.output;
         let hash = random_ident();
         let ident = ident.to_string();
-        quote!(
-            #[export_name = #ident]
-            #(#attrs)*
-            #unsafety extern "msp430-interrupt" fn #hash() {
-                #check
-
-                #[inline(always)]
-                #unsafety fn #hash<'a>(#fn_param) #output {
-                    #(#vars)*
-                    #(#stmts)*
+        if wake_cpu {
+            quote!(
+                #[export_name = #ident]
+                #(#attrs)*
+                #[unsafe(naked)]
+                unsafe extern "msp430-interrupt" fn #hash() {
+                    #[inline(always)]
+                    #unsafety extern "msp430-interrupt" fn #hash<'a>(#fn_param) #output {
+                        #check
+                        #(#vars)*
+                        #(#stmts)*
+                    }
+                    {
+                        // Clear SCG1, SCG0, OSC_OFF, CPU_OFF in saved copy of SR register on stack
+                        const MASK: u8 = (1<<7) + (1<<6) + (1<<5) + (1<<4);
+                        core::arch::naked_asm!(
+                            "bic.b #{mask}, 0(r1)",
+                            "jmp {inner}",
+                            inner = sym #hash,
+                            mask = const MASK
+                        );
+                    }
                 }
-                { #hash(#fn_arg) }
-            }
-        )
-        .into()
+            )
+        } else {
+            quote!(
+                #[export_name = #ident]
+                #(#attrs)*
+                #unsafety extern "msp430-interrupt" fn #hash() {
+                    #check
+
+                    #[inline(always)]
+                    #unsafety fn #hash<'a>(#fn_param) #output {
+                        #(#vars)*
+                        #(#stmts)*
+                    }
+                    { #hash(#fn_arg) }
+                }
+            )
+        }.into()
     } else {
         parse::Error::new(
             fspan,
