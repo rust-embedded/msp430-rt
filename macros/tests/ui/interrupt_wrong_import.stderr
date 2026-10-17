@@ -16,7 +16,7 @@ error[E0658]: the extern "msp430-interrupt" ABI is experimental and subject to c
    = help: add `#![feature(abi_msp430_interrupt)]` to the crate attributes to enable
    = note: this error originates in the attribute macro `interrupt` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0433]: failed to resolve: use of unresolved module or unlinked crate `interrupt`
+error[E0433]: cannot find module or crate `interrupt` in this scope
   --> tests/ui/interrupt_wrong_import.rs:11:1
    |
 11 | #[interrupt]
