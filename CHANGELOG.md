@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Startup assembler file is now written with a `global_asm!` block inside the
+  library. `#![feature(asm_experimental_arch)]` is required for this, but nightly
+  is required anyway. This change avoids issues when linking against this
+  library with an application built using MSP430X instructions because the
+  startup assembly was previously assembled with the CPU type set to `msp430`.
+
 ## [v0.4.1]- 2025-08-19
 
 ### Added

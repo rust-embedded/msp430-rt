@@ -341,7 +341,10 @@
 
 #![deny(missing_docs)]
 #![feature(abi_msp430_interrupt)]
+#![feature(asm_experimental_arch)]
 #![no_std]
+
+use core::arch::global_asm;
 
 use msp430::asm;
 pub use msp430_rt_macros::interrupt;
@@ -369,6 +372,49 @@ static __RESET_VECTOR: unsafe extern "msp430-interrupt" fn() -> ! = Reset;
 
 #[no_mangle]
 unsafe extern "C" fn PreInit_() {}
+
+// Reset handler, written in assembly.
+//
+// Sets up stack pointer, .bss and .data segment before branching to main
+// method.
+global_asm!(
+    r#"
+  .pushsection .Reset, "ax"
+  .balign 2
+  .global Reset
+  .type Reset, %function
+Reset:
+  mov       #_stack_start, r1
+  call      #PreInit
+
+; .bss initialization
+  mov       #_sbss, r4
+.more_bss:
+  cmp       #_ebss, r4
+  jhs       .done_bss               ; r4 >= _ebss
+  clr.b     0(r4)                   ; Zero out RAM.
+  inc       r4
+  jmp       .more_bss
+.done_bss:
+
+; .data initialization
+  mov       #_sdata, r4
+  mov       #_sidata, r5
+.more_data:
+  cmp       #_edata, r4
+  jhs       .done_data              ; r4 >= _edata
+  mov.b     @r5, 0(r4)              ; Copy from ROM to RAM.
+  inc       r5
+  inc       r4
+  jmp       .more_data
+.done_data:
+
+  br        #main
+
+  .size Reset, .-Reset
+  .popsection
+    "#
+);
 
 #[no_mangle]
 extern "msp430-interrupt" fn DefaultHandler_() -> ! {
